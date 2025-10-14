@@ -1,0 +1,23 @@
+[project]
+name = "geoetl"
+version = "0.1.0"
+description = "Minimal GeoETL example with Planet Basemaps"
+requires-python = ">=3.9"
+dependencies = [
+    "geopandas",
+    "rioxarray",
+    "rasterio",
+    "tqdm",
+    "requests",
+    "typer",
+    "pydantic",
+    "pyyaml"
+]
+
+[tool.setuptools]
+packages = ["geoetl"]
+
+[project.scripts]
+geoetl = "geoetl.cli:app"
+
+

@@ -1,0 +1,17 @@
+aoi:
+  path: data/phl_random_points_buffers.shp
+
+catalog:
+  sensor: planet
+  composite: global_quarterly_2022q3_mosaic
+
+auth:
+  api_key: ${PLANET_API_KEY}   # or just put the key string here
+
+output:
+  root: data/planet_pipeline
+
+params:
+  uid_column: geo_id
+  label_column: deped_id
+  dataset_name: phl_schools
