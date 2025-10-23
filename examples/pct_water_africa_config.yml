@@ -10,10 +10,9 @@ auth:
 
 output:
   root: /scratch/hbaier/new_data/usaid_dhs/imagery
-  sub_root: True
-  sub_root_column: iso
+  sub_root: False
 
 params:
-  uid_column: dhsid
-  label_column: pct_improv
-  dataset_name: pct_improved_water_africa
+  uid_column: geo_id
+  label_column: label
+  dataset_name: phl_gee_test

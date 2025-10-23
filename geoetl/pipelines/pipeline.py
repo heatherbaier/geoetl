@@ -57,6 +57,12 @@ def run_pipeline(cfg):
 
         try:
 
+            """
+            In some cases, I like to nest my clipped imagery
+            For example, when downlaoding for a lot of countries, 
+            I like to organize by country, so this would take care 
+            of the folder nesting.
+            """
             if sub_root:
     
                 sr = row[sub_root_column]
@@ -69,8 +75,11 @@ def run_pipeline(cfg):
                 
                 if not os.path.exists(quads_dir):
                     os.mkdir(quads_dir)       
-    
+
+            # Grab the Unique ID of the polygon
             aoi_id = row[uid_column]
+
+            # Grab the Polygon's ML Label
             label = row[label_col] if label_col else None
     
             # Define output paths
