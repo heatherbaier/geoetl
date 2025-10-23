@@ -1,0 +1,19 @@
+aoi:
+  path: /scratch/hbaier/new_data/usaid_dhs/indicators/point_buffers/all_vars_og_point_buffers.shp
+
+catalog:
+  sensor: planet
+  composite: global_quarterly_2022q3_mosaic
+
+auth:
+  api_key: ${PLANET_API_KEY}   # or just put the key string here
+
+output:
+  root: /scratch/hbaier/new_data/usaid_dhs/imagery
+  sub_root: True
+  sub_root_column: iso
+
+params:
+  uid_column: dhsid
+  label_column: pct_improv
+  dataset_name: pct_improved_water_africa

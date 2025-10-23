@@ -2,3 +2,4 @@ data
 geoetl.egg-info
 .ipynb_checkpoints
 geoetl.log
+*job
