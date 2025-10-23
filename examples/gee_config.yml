@@ -1,0 +1,17 @@
+aoi:
+  path: data/phl_random_points_buffers.shp
+
+catalog:
+  sensor: gee # where the iamgery is coming from
+  composite: LANDSAT/LT05/C02/T1_L2 # the imagery collection ID
+
+# auth:
+#   api_key: ${PLANET_API_KEY}   # or just put the key string here
+
+output:
+  root: /scratch/<ASURITE>/imagery
+
+params:
+  uid_column: geo_id
+  label_column: deped_id
+  dataset_name: phl_schools
