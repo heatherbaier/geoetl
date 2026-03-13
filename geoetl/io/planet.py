@@ -22,6 +22,43 @@ class PlanetBasemapSource:
         self.session = requests.Session()
         self.session.auth = (self.api_key, "")
 
+
+
+    def set_time_filter(self, year=None, steps=None, cadence="monthly"):
+        """
+        Dynamically set Planet mosaic name using year + step (month or quarter),
+        depending on cadence.
+    
+        Examples:
+            cadence='monthly',  steps=[8]  → global_monthly_2025_08_mosaic
+            cadence='quarterly', steps=[3] → global_quarterly_2022q3_mosaic
+        """
+        if not year:
+            return  # static imagery, no temporal filtering
+    
+        if not steps or len(steps) == 0:
+            raise ValueError("At least one temporal step (month or quarter) must be provided.")
+    
+        cadence = cadence.lower().strip()
+        step = steps[0]  # For now we handle one time slice at a time in the pipeline
+    
+        if cadence == "monthly":
+            step_str = str(step).zfill(2)
+            self.mosaic_name = f"global_monthly_{year}_{step_str}_mosaic"
+    
+        elif cadence == "quarterly":
+            self.mosaic_name = f"global_quarterly_{year}q{int(step)}_mosaic"
+    
+        else:
+            raise ValueError(f"Unsupported cadence: {cadence}")
+    
+        print(f"🕓 Set mosaic to: {self.mosaic_name}")
+
+
+    
+    
+            
+
     # ---------------------- Core Methods ----------------------
 
     def find_local_tiles(self, geom, quads_dir):

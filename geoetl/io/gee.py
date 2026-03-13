@@ -9,6 +9,7 @@ from tqdm import tqdm
 from rioxarray.merge import merge_arrays
 import urllib.request
 
+
 class GEESource:
     def __init__(self, api_key, out_root, mosaic_name):
         """
@@ -18,6 +19,7 @@ class GEESource:
         self.ic = mosaic_name
         pass # remove this when you start coding!
 
+    
     def find_local_tiles(self, geom, quads_dir):
         """
         This should find any images from the mosaic that 

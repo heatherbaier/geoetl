@@ -1,5 +1,5 @@
 aoi:
-  path: data/phl_random_points_buffers.shp
+  path: /home/<asurite>/.../data/phl_random_points_buffers.shp
 
 catalog:
   sensor: gee # where the iamgery is coming from
@@ -10,6 +10,7 @@ catalog:
 
 output:
   root: /scratch/<ASURITE>/imagery
+  sub_root: False
 
 params:
   uid_column: geo_id

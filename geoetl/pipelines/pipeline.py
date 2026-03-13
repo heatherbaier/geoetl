@@ -8,117 +8,118 @@ def run_pipeline(cfg):
     gdf = gpd.read_file(cfg["aoi"]["path"])
     out_dir = cfg["output"]["root"]
     label_col = cfg["params"]["label_column"]
-    source = get_source(cfg["catalog"]["sensor"], cfg)
     uid_column = cfg["params"]["uid_column"]
-    label_col = cfg["params"]["label_column"]
     ds_name = cfg["params"]["dataset_name"]
-    sub_root = cfg["output"]["sub_root"]
-    sub_root_column = cfg["output"]["sub_root_column"]
+    source = get_source(cfg["catalog"]["sensor"], cfg)
+    sub_root = cfg["output"].get("sub_root")
+    sub_root_column = cfg["output"].get("sub_root_column")
 
+    chips_root = os.path.join(out_dir, "chips")
+    quads_root = os.path.join(out_dir, "quads")
+    os.makedirs(chips_root, exist_ok=True)
+    os.makedirs(quads_root, exist_ok=True)
 
-    # Create the JSON files for labels and coords
     labels_path = os.path.join(out_dir, ds_name + "_labels.json")
     coords_path = os.path.join(out_dir, ds_name + "_coords.json")
 
-    
-    if not os.path.exists(labels_path):
-        with open(labels_path, "w") as f:
-            json.dump({}, f)
-        labels = {}
-    else:
-        with open(labels_path, "r") as f:
-            labels = json.load(f)
+    for path in [labels_path, coords_path]:
+        if not os.path.exists(path):
+            with open(path, "w") as f:
+                json.dump({}, f)
 
-    
-    if not os.path.exists(coords_path):
-        with open(coords_path, "w") as f:
-            json.dump({}, f)     
-        coords = {}
-    else:
-        with open(coords_path, "r") as f:
-            coords = json.load(f)
-
-    
-    # Create the JSON files for labels and coords
-    chips_dir = os.path.join(out_dir, "chips")
-    quads_dir = os.path.join(out_dir, "quads")
-    
-    if not os.path.isdir(chips_dir):
-        os.mkdir(chips_dir)
-
-    if not os.path.exists(quads_dir):
-        os.mkdir(quads_dir)             
-    
-    # gdf = gdf.sample(10)
+    with open(labels_path) as f:
+        labels = json.load(f)
+    with open(coords_path) as f:
+        coords = json.load(f)
 
     mapping_path = os.path.join(out_dir, "aoi_mapping.json")
 
-    for idx, row in gdf.iterrows():
+    # 🧩 define the reusable AOI loop
+    def process_aoi_set(chips_dir, quads_dir, temporal_tag=None):
+        for idx, row in gdf.iterrows():
+            try:
+                if sub_root:
+                    sr = str(row[sub_root_column])
+                    chips_dir = os.path.join(chips_dir, sr)
+                    quads_dir = os.path.join(quads_dir, sr)
+                    os.makedirs(chips_dir, exist_ok=True)
+                    os.makedirs(quads_dir, exist_ok=True)
 
-        try:
+                aoi_id = str(row[uid_column])
+                label = row[label_col] if label_col else None
+                clip_path = os.path.join(chips_dir, f"{aoi_id}.tif")
 
-            """
-            In some cases, I like to nest my clipped imagery
-            For example, when downlaoding for a lot of countries, 
-            I like to organize by country, so this would take care 
-            of the folder nesting.
-            """
-            if sub_root:
-    
-                sr = row[sub_root_column]
-    
-                chips_dir = os.path.join(out_dir, "chips", sr)
-                quads_dir = os.path.join(out_dir, "quads", sr)
-    
-                if not os.path.isdir(chips_dir):
-                    os.mkdir(chips_dir)
-                
-                if not os.path.exists(quads_dir):
-                    os.mkdir(quads_dir)       
+                if os.path.exists(clip_path):
+                    print(f"Skipping {aoi_id} (already processed)")
+                    continue
 
-            # Grab the Unique ID of the polygon
-            aoi_id = row[uid_column]
+                local_tiles = source.find_local_tiles(row.geometry, quads_dir)
+                if not source.has_all_tiles(local_tiles, row.geometry):
+                    new_tiles = source.download_tiles_for_geometry(row.geometry, quads_dir)
 
-            # Grab the Polygon's ML Label
-            label = row[label_col] if label_col else None
-    
-            # Define output paths
-            clip_path = os.path.join(chips_dir, f"{aoi_id}.tif")
-    
-            # Skip if already processed
-            if os.path.exists(clip_path):
-                print(f"Skipping {aoi_id} (already processed)")
+                clipped = source.clip_to_geometry(row.geometry, clip_path, quads_dir)
+
+                update_json(mapping_path, aoi_id, {
+                    "label": label,
+                    "tiles_used": [t["id"] for t in local_tiles],
+                    "output": clip_path,
+                    "status": "complete"
+                })
+
+                # 🌍 store temporal or static label structure
+                if temporal_tag:
+                    # initialize if not present
+                    if aoi_id not in labels:
+                        labels[aoi_id] = {"chips": [], "label": label}
+
+                    # append chip for this temporal slice
+                    if clip_path not in labels[aoi_id]["chips"]:
+                        labels[aoi_id]["chips"].append(clip_path)
+
+                else:
+                    # static (old) style
+                    labels[clip_path] = label
+
+                coords[clip_path] = [row.geometry.centroid.x, row.geometry.centroid.y]
+
+                if idx % 1 == 0:
+                    with open(coords_path, "w") as f:
+                        json.dump(coords, f)
+                    with open(labels_path, "w") as f:
+                        json.dump(labels, f)
+
+            except Exception as e:
+                print(f"⚠️ Error on AOI {aoi_id}: {e}")
                 continue
-    
-            # 1) Check which quads intersect locally cached tiles
-            local_tiles = source.find_local_tiles(row.geometry, quads_dir)
-    
-            # 2) If missing tiles, query + download just what's needed
-            if not source.has_all_tiles(local_tiles, row.geometry):
-                new_tiles = source.download_tiles_for_geometry(row.geometry, quads_dir)
-    
-            # 3) Clip (merge local+new)
-            clipped = source.clip_to_geometry(row.geometry, clip_path, quads_dir)
-    
-            # 4) Log progress
-            update_json(mapping_path, aoi_id, {
-                "label": label,
-                "tiles_used": [t["id"] for t in local_tiles],
-                "output": clip_path,
-                "status": "complete"
-            })
-            
-            labels[clip_path] = row[label_col]
-            coords[clip_path] = [row.geometry.centroid.x, row.geometry.centroid.y]
-    
-            # Every 5 iterations (for example), flush to disk
-            if idx % 1 == 0:
-                
-                with open(coords_path, "w") as f:
-                    json.dump(coords, f)#, indent=2)
-    
-                with open(labels_path, "w") as f:
-                    json.dump(labels, f)#, indent=2)
 
-        except:
-            pass
+    # 🕓 temporal logic
+    temporal_cfg = cfg.get("temporal", {})
+    if temporal_cfg.get("enabled", False):
+        years = temporal_cfg.get("years", [])
+        steps = temporal_cfg.get("steps", [])
+        cadence = temporal_cfg.get("cadence", "monthly")
+
+        for year in years:
+            for step in steps:
+                step_label = f"{year}_{cadence[0]}{str(step).zfill(2)}"
+                chips_dir = os.path.join(chips_root, step_label)
+                quads_dir = os.path.join(quads_root, step_label)
+                os.makedirs(chips_dir, exist_ok=True)
+                os.makedirs(quads_dir, exist_ok=True)
+
+                # update Planet source for this time slice
+                source.set_time_filter(year=year, steps=[step], cadence=cadence)
+                print(f"⏳ Processing {step_label}...")
+
+                # pass temporal_tag so we know to use nested JSON format
+                process_aoi_set(chips_dir, quads_dir, temporal_tag=step_label)
+
+    else:
+        # static fallback
+        process_aoi_set(chips_root, quads_root)
+
+    # ✅ final write
+    with open(labels_path, "w") as f:
+        json.dump(labels, f, indent=2)
+    with open(coords_path, "w") as f:
+        json.dump(coords, f, indent=2)
