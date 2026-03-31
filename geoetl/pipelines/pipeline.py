@@ -19,7 +19,7 @@ def run_pipeline(cfg):
     os.makedirs(chips_root, exist_ok=True)
     os.makedirs(quads_root, exist_ok=True)
 
-    labels_path = os.path.join(out_dir, ds_name + "_labels.json")
+    labels_path = os.path.join(out_dir, ds_name + "_ys.json")
     coords_path = os.path.join(out_dir, ds_name + "_coords.json")
 
     for path in [labels_path, coords_path]:
@@ -54,6 +54,7 @@ def run_pipeline(cfg):
                     continue
 
                 local_tiles = source.find_local_tiles(row.geometry, quads_dir)
+                print(local_tiles)
                 if not source.has_all_tiles(local_tiles, row.geometry):
                     new_tiles = source.download_tiles_for_geometry(row.geometry, quads_dir)
 
