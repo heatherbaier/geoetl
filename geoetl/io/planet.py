@@ -108,6 +108,13 @@ class PlanetBasemapSource(ImagerySource):
             quad_id = item["id"]
             filename = os.path.join(quads_dir, f"{quad_id}.tif")
 
+            if os.path.isfile(filename) and not self.is_valid_raster(filename):
+                # Left truncated by an earlier interrupted download -- discard
+                # and re-fetch instead of treating this quad as permanently
+                # cached-but-broken.
+                print(f"⚠️ Cached quad {quad_id} is invalid, re-downloading")
+                os.remove(filename)
+
             if not os.path.isfile(filename):
                 try:
                     urllib.request.urlretrieve(link, filename)

@@ -440,8 +440,14 @@ class MPCSource(ImagerySource):
         tile_path = os.path.join(quads_dir, fname)
 
         if os.path.isfile(tile_path):
-            print(f"✅ Composite already cached: {fname}")
-            return [tile_path]
+            if self.is_valid_raster(tile_path):
+                print(f"✅ Composite already cached: {fname}")
+                return [tile_path]
+            # Existing file is present but unreadable -- e.g. left truncated
+            # by a process that was killed mid-write. Discard it and rebuild
+            # rather than treating this AOI as a permanent failure.
+            print(f"⚠️ Cached composite {fname} is invalid, rebuilding")
+            os.remove(tile_path)
 
         try:
             composite = self._build_composite(geom)
