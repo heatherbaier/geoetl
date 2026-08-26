@@ -45,7 +45,7 @@ from odc.stac import stac_load
 from rioxarray.merge import merge_arrays
 from shapely.geometry import box, mapping
 
-from geoetl.io.base import ImagerySource
+from geoetl.io.base import AOITooLargeError, ImagerySource
 
 MPC_STAC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 
@@ -408,6 +408,27 @@ class MPCSource(ImagerySource):
             f"~{est_mb / n_chunks:.0f} MB per chunk"
         )
 
+        # Hard safety cap. AOI shapefiles covering a whole state mix normal
+        # tracts with rare, enormous outliers (e.g. a rural Coconino County
+        # tract can be ~100x wider than a Phoenix one) -- chunking bounds
+        # per-tile memory, but an outlier this extreme can still overwhelm
+        # the job through sheer chunk count / dask concurrency regardless of
+        # how small each individual chunk is. Bail out cleanly for this one
+        # AOI rather than risk taking the whole job down again. Raised as
+        # AOITooLargeError (not plain RuntimeError) so download_tiles_for_
+        # geometry lets it propagate instead of swallowing it -- pipeline.py
+        # catches this type specifically to log which AOI got skipped and
+        # why, separately from ordinary per-AOI errors.
+        max_composite_mb = self.cfg.get("max_composite_mb", 8000)
+        if est_mb > max_composite_mb:
+            raise AOITooLargeError(
+                f"Composite would be ~{est_mb:.0f} MB ({nx}x{ny} px, "
+                f"{len(items)} items) -- exceeds max_composite_mb="
+                f"{max_composite_mb}. Likely an outlier-sized AOI; revisit "
+                f"it separately (e.g. a coarser resolution just for this "
+                f"geometry) rather than attempting it at full resolution."
+            )
+
         # Sensor-specific masking + harmonization.
         if self.sensor == "sentinel2":
             masked_bands = self._mask_and_scale_s2(data)
@@ -492,6 +513,11 @@ class MPCSource(ImagerySource):
 
         try:
             composite = self._build_composite(geom)
+        except AOITooLargeError:
+            # Let this propagate -- pipeline.py logs it to a dedicated file
+            # instead of just printing it, so oversized AOIs are easy to
+            # find and revisit later.
+            raise
         except RuntimeError as e:
             print(f"⚠️ Composite build failed: {e}")
             return []
