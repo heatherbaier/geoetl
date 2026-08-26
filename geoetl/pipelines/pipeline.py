@@ -36,8 +36,11 @@ def run_pipeline(cfg):
 
     # 🧩 define the reusable AOI loop
     def process_aoi_set(chips_dir, quads_dir, temporal_tag=None):
+        
         for idx, row in gdf.iterrows():
+            
             try:
+            
                 if sub_root:
                     sr = str(row[sub_root_column])
                     chips_dir = os.path.join(chips_dir, sr)
@@ -48,6 +51,9 @@ def run_pipeline(cfg):
                 aoi_id = str(row[uid_column])
                 label = row[label_col] if label_col else None
                 clip_path = os.path.join(chips_dir, f"{aoi_id}.tif")
+
+                print(aoi_id, label, clip_path)
+                print(row.geometry)
 
                 if os.path.exists(clip_path):
                     print(f"Skipping {aoi_id} (already processed)")
@@ -124,3 +130,5 @@ def run_pipeline(cfg):
         json.dump(labels, f, indent=2)
     with open(coords_path, "w") as f:
         json.dump(coords, f, indent=2)
+
+

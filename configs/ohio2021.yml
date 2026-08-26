@@ -1,0 +1,30 @@
+aoi:
+  path: /data/hbaier/new_data/tlag/year_shps/2021_census.shp
+
+catalog:
+  sensor: landsat8
+  composite: "LANDSAT/LC08/C02/T1_L2"
+  year: 2021
+  start_date: "2021-01-01"
+  end_date: "2021-12-31"
+  
+auth:
+  api_key: ${PLANET_API_KEY}   # or just put the key string here
+
+output:
+  root: /data/hbaier/new_data/tlag/imagery/2021/
+  sub_root: False
+  
+params:
+  uid_column: GEOID
+  label_column: poverty_ra
+  dataset_name: ohio2021
+
+
+
+
+# {
+#   "catalog": { "sensor": "landsat", "year": 2020, "month": 8 },
+#   "auth": { "ee_project": "your-gee-project-id" },
+#   "output": { "root": "/path/to/output" }
+# }

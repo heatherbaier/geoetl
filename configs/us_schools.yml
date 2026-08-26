@@ -1,0 +1,18 @@
+aoi:
+  path: /data/hbaier/new_data/us_schools/data/4km_school_buffers.shp
+
+catalog:
+  sensor: planet
+  composite: global_quarterly_2020q4_mosaic
+
+auth:
+  api_key: ${PLANET_API_KEY}   # or just put the key string here
+
+output:
+  root: /data/hbaier/new_data/us_schools/imagery/
+  sub_root: False
+  
+params:
+  uid_column: ncessch
+  label_column: proficienc
+  dataset_name: us_schools

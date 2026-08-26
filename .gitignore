@@ -8,3 +8,8 @@ geoetl.log
 examples/
 *job*
 archive
+*__pycache__*
+*.ipynb*
+*.err
+*.out
+*test*

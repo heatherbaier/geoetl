@@ -1,0 +1,24 @@
+aoi:
+  path: /home/hbaier/projects/sr/dl_imagery/geoetl/data/phl_1p5km_buffers_wnat.shp
+
+catalog:
+  sensor: planet
+  composite: global_monthly_2024_05_mosaic
+
+auth:
+  api_key: ${PLANET_API_KEY}   # or just put the key string here
+
+output:
+  root: /scratch/hbaier/new_data/phl_temporal/full_imagery
+  sub_root: False
+
+params:
+  uid_column: school_id
+  label_column: overall_mp
+  dataset_name: phl_nat_2324_overallmp
+  
+temporal:
+  enabled: true
+  cadence: monthly
+  years: [2023, 2024]
+  steps: [8,9,10,11,12,1,2,3,4,5]

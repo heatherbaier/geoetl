@@ -1,0 +1,19 @@
+aoi:
+  path: /data/hbaier/new_data/geomasking/ke/indicators/kenya_grid_5random_point_buffers.shp
+
+catalog:
+  sensor: planet
+  composite: global_quarterly_2022q3_mosaic
+
+auth:
+  api_key: ${PLANET_API_KEY}   # or just put the key string here
+
+output:
+  root: /data/hbaier/new_data/geomasking/ke/grid_imagery
+  sub_root: False
+  
+params:
+  uid_column: pt_id2
+  label_column: grid_id
+  dataset_name: ke_grid
+

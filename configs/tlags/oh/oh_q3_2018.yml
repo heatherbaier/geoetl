@@ -1,0 +1,21 @@
+aoi:
+  path: /home/hbaier/projects/tlags_v2/data/tracts2019/OH/tl_2019_39_tract_proj.shp
+
+catalog:
+  sensor: mpc_sentinel2
+  start_date: "2018-07-01"
+  end_date: "2018-09-30"
+  cloud_cover_max: 30
+  mask_clouds: false
+
+auth:
+  mpc_api_key: null
+
+output:
+  root: /data/hbaier/new_data/tlag/imagery/q3_2018_s2/
+  sub_root: False
+
+params:
+  uid_column: GEOID
+  label_column: NAME
+  dataset_name: ohio_2018_q3_s2

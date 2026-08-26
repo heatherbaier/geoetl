@@ -1,23 +1,15 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "geoetl"
 version = "0.1.0"
-description = "Minimal GeoETL example with Planet Basemaps"
 requires-python = ">=3.9"
-dependencies = [
-    "geopandas",
-    "rioxarray",
-    "rasterio",
-    "tqdm",
-    "requests",
-    "typer",
-    "pydantic",
-    "pyyaml"
-]
-
-[tool.setuptools]
-packages = ["geoetl"]
 
 [project.scripts]
 geoetl = "geoetl.cli:app"
 
-
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["geoetl*"]

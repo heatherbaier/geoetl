@@ -1,0 +1,19 @@
+aoi:
+  path: /data/hbaier/new_data/geomasking/mw/indicators/point_buffers/mw_all_vars_10_points_buffers.shp
+
+catalog:
+  sensor: planet
+  composite: global_monthly_2016_10_mosaic
+
+auth:
+  api_key: ${PLANET_API_KEY}   # or just put the key string here
+
+output:
+  root: /data/hbaier/new_data/geomasking/mw/imagery_10samps/
+  sub_root: False
+  
+params:
+  uid_column: samp_id
+  label_column: avg_weal_1
+  dataset_name: mw2016
+

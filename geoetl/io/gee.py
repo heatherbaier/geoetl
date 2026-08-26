@@ -14,7 +14,7 @@ from rioxarray.merge import merge_arrays
 SENSOR_CONFIGS = {
     "landsat8": {
         "collection": "LANDSAT/LC08/C02/T1_L2",
-        "bands": ["SR_B4", "SR_B3", "SR_B2"],   # R, G, B
+        "bands": ["SR_B7", "SR_B6", "SR_B5", "SR_B4", "SR_B3", "SR_B2"],   # R, G, B
         "scale": 30,
         "scale_factor": 0.0000275,
         "offset": -0.2,

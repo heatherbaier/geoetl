@@ -1,0 +1,22 @@
+aoi:
+  path: /home/hbaier/packages/geoetl/data/phl_1p5km_buffers_wnat.shp
+
+catalog:
+  sensor: alpha_earth
+  collection: "GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL"                          # leave blank — always GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL
+
+output:
+  root: /home/hbaier/packages/geoetl/test
+
+params:
+  uid_column: school_id
+  label_column: overall_mp              # set to null if no labels yet
+  dataset_name: test_alpha_earth                        # leave blank for now
+
+temporal:
+  years:
+    - 2022
+    - 2023
+  use_export: false                    # flip to true for large datasets (> ~5000 locations)
+  scale: 10                            # native AEF resolution in metres — only increase if you
+                                       # want a spatially averaged embedding over a larger window
