@@ -80,8 +80,7 @@ def run_pipeline(cfg):
                 source.clip_to_geometry(row.geometry, clip_path, quads_dir)
 
                 processed_count += 1
-                if processed_count % 5 == 0:
-                    print(f"📊 [mem] after {processed_count} built AOIs ({aoi_id}): {_peak_rss_mb():.0f} MB peak RSS")
+                print(f"📊 [mem] after {processed_count} built AOIs ({aoi_id}): {_peak_rss_mb():.0f} MB peak RSS")
 
                 update_json(mapping_path, aoi_id, {
                     "label": label,

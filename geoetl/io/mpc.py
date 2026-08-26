@@ -369,15 +369,44 @@ class MPCSource(ImagerySource):
         # composites for anything smaller than a hemisphere.
         utm_crs = self._utm_crs_for(geom)
 
+        # Bound the spatial chunk size instead of loading the AOI as one
+        # single dask chunk (chunks={}). Most AOIs are small enough that
+        # this makes no difference -- they still end up as one chunk. But
+        # AZ (and other statewide) tract shapefiles mix small urban tracts
+        # with enormous rural ones (e.g. a Coconino County tract can be
+        # orders of magnitude larger in area than a Phoenix one), and pixel
+        # count scales with AOI area at a fixed resolution regardless of
+        # item count. With chunks={}, one huge tract forces dask to hold
+        # every item x every band x the *entire* tract's pixel grid in
+        # memory at once when the median is computed -- effectively eager
+        # loading. Bounded chunks let rioxarray's to_raster() (which writes
+        # dask-backed arrays block-by-block) compute and write the median
+        # one spatial tile at a time, releasing each before the next, so
+        # peak memory is bounded by chunk size instead of tract size.
+        chunk_px = self.cfg.get("chunk_px", 1024)
         data = stac_load(
             items,
             bands=assets,
             geopolygon=geom,          # AOI, in WGS84
             resolution=self.cfg["scale"],
             crs=utm_crs,              # metres per pixel
-            chunks={},
+            chunks={"x": chunk_px, "y": chunk_px},
         )
-        
+
+        # Diagnostic: confirm the read window's actual size and how many
+        # spatial chunks it was split into -- tens/hundreds of pixels in a
+        # single chunk for a typical tract, versus a huge tract that now
+        # spans many chunks instead of one massive one.
+        ny = data.sizes.get("y", 0)
+        nx = data.sizes.get("x", 0)
+        n_chunks = max(1, -(-nx // chunk_px)) * max(1, -(-ny // chunk_px)) if (nx and ny) else 1
+        est_mb = (len(items) * len(assets) * ny * nx * 4) / (1024 * 1024)
+        print(
+            f"🧮 stac_load window: {nx}x{ny} px in {n_chunks} chunk(s), "
+            f"{len(items)} items x {len(assets)} bands -> "
+            f"~{est_mb:.0f} MB uncompressed total, "
+            f"~{est_mb / n_chunks:.0f} MB per chunk"
+        )
 
         # Sensor-specific masking + harmonization.
         if self.sensor == "sentinel2":
