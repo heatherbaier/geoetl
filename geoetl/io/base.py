@@ -99,3 +99,24 @@ class ImagerySource(ABC):
                 # Skip a file we can't open as a raster.
                 continue
         return local_tiles
+
+    @staticmethod
+    def is_valid_raster(path: str) -> bool:
+        """
+        True iff path exists and can actually be opened as a raster.
+
+        A "cache exists" check must confirm this, not just os.path.isfile():
+        a process killed mid-write (e.g. an earlier OOM during
+        `.rio.to_raster()`) leaves a truncated file at the expected cache
+        path, which os.path.isfile() alone would treat as valid forever,
+        permanently failing that AOI on every future run instead of
+        rebuilding it.
+        """
+        if not os.path.isfile(path):
+            return False
+        try:
+            with riox.open_rasterio(path):
+                pass
+            return True
+        except Exception:
+            return False

@@ -20,8 +20,20 @@ Auth: anonymous works for moderate volumes. For higher throughput set the
 PC_SDK_SUBSCRIPTION_KEY environment variable to your MPC API key.
 """
 
-import calendar
 import os
+
+# Bound GDAL's caching before any raster I/O happens (must precede rasterio/
+# rioxarray import). Each AOI's STAC search re-signs asset URLs with a fresh
+# SAS token, so GDAL's per-URL /vsicurl/ cache never gets a hit across AOIs
+# in a batch job like this -- left unbounded, both it and the raster block
+# cache grow for the life of the process purely as accumulated waste.
+# setdefault() so an operator's own environment settings (e.g. in a SLURM
+# job script) still take priority.
+os.environ.setdefault("GDAL_CACHEMAX", "512")  # MB, raster block cache
+os.environ.setdefault("CPL_VSIL_CURL_CACHE_SIZE", "268435456")  # 256MB, /vsicurl/ cache
+os.environ.setdefault("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
+
+import calendar
 from typing import List, Optional
 
 import geopandas as gpd
@@ -440,8 +452,14 @@ class MPCSource(ImagerySource):
         tile_path = os.path.join(quads_dir, fname)
 
         if os.path.isfile(tile_path):
-            print(f"✅ Composite already cached: {fname}")
-            return [tile_path]
+            if self.is_valid_raster(tile_path):
+                print(f"✅ Composite already cached: {fname}")
+                return [tile_path]
+            # Existing file is present but unreadable -- e.g. left truncated
+            # by a process that was killed mid-write. Discard it and rebuild
+            # rather than treating this AOI as a permanent failure.
+            print(f"⚠️ Cached composite {fname} is invalid, rebuilding")
+            os.remove(tile_path)
 
         try:
             composite = self._build_composite(geom)

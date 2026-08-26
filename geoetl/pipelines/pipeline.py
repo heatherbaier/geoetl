@@ -3,6 +3,16 @@ from geoetl.utils.jsonio import update_json
 import geopandas as gpd
 import json
 import os
+import resource
+
+
+def _peak_rss_mb() -> float:
+    """Peak RSS (MB) of this process so far. Monotonically non-decreasing
+    on Linux, so printed periodically it makes real per-AOI memory growth
+    directly visible in job logs instead of only showing up as an OOM kill
+    with no indication of where the growth happened."""
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+
 
 def run_pipeline(cfg):
     gdf = gpd.read_file(cfg["aoi"]["path"])
@@ -34,9 +44,11 @@ def run_pipeline(cfg):
 
     mapping_path = os.path.join(out_dir, "aoi_mapping.json")
     checkpoint_every = cfg["output"].get("checkpoint_every", 25)
+    processed_count = 0
 
     # 🧩 define the reusable AOI loop
     def process_aoi_set(chips_root_dir, quads_root_dir, temporal_tag=None):
+        nonlocal processed_count
 
         for idx, row in gdf.iterrows():
 
@@ -66,6 +78,10 @@ def run_pipeline(cfg):
                     source.download_tiles_for_geometry(row.geometry, quads_dir)
 
                 source.clip_to_geometry(row.geometry, clip_path, quads_dir)
+
+                processed_count += 1
+                if processed_count % 5 == 0:
+                    print(f"📊 [mem] after {processed_count} built AOIs ({aoi_id}): {_peak_rss_mb():.0f} MB peak RSS")
 
                 update_json(mapping_path, aoi_id, {
                     "label": label,
