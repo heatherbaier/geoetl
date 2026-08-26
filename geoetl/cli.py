@@ -1,8 +1,18 @@
 import os
 import re
+import sys
 import typer
 import yaml
 from geoetl.pipelines.pipeline import run_pipeline
+
+# Python fully block-buffers stdout/stderr when they're not a terminal (e.g.
+# redirected to a SLURM log file) -- print() output sits in memory until the
+# buffer fills or the process exits cleanly. A SIGKILL from an OOM killer
+# never lets that flush happen, so anything still buffered at the moment of
+# death is silently lost, including diagnostics that would explain the kill.
+# Line-buffer so every print reaches disk immediately.
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 
 app = typer.Typer(help="GeoETL command-line interface")
 
