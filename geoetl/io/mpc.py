@@ -408,6 +408,25 @@ class MPCSource(ImagerySource):
             f"~{est_mb / n_chunks:.0f} MB per chunk"
         )
 
+        # Hard safety cap. AOI shapefiles covering a whole state mix normal
+        # tracts with rare, enormous outliers (e.g. a rural Coconino County
+        # tract can be ~100x wider than a Phoenix one) -- chunking bounds
+        # per-tile memory, but an outlier this extreme can still overwhelm
+        # the job through sheer chunk count / dask concurrency regardless of
+        # how small each individual chunk is. Bail out cleanly for this one
+        # AOI rather than risk taking the whole job down again; the caller
+        # (download_tiles_for_geometry) already treats RuntimeError here as
+        # "skip and log", same as the no-items case above.
+        max_composite_mb = self.cfg.get("max_composite_mb", 8000)
+        if est_mb > max_composite_mb:
+            raise RuntimeError(
+                f"Composite would be ~{est_mb:.0f} MB ({nx}x{ny} px, "
+                f"{len(items)} items) -- exceeds max_composite_mb="
+                f"{max_composite_mb}. Likely an outlier-sized AOI; revisit "
+                f"it separately (e.g. a coarser resolution just for this "
+                f"geometry) rather than attempting it at full resolution."
+            )
+
         # Sensor-specific masking + harmonization.
         if self.sensor == "sentinel2":
             masked_bands = self._mask_and_scale_s2(data)
