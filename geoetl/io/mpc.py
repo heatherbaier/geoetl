@@ -328,8 +328,6 @@ class MPCSource:
         """
         items = self._search_items(geom)
 
-        print("------------------- ITEMS: ", items)
-        
         if not items:
             raise RuntimeError(
                 f"No items found in {self.cfg['collection']} for the current "
@@ -404,23 +402,31 @@ class MPCSource:
     # Public interface — same five methods pipeline.py calls
     # ------------------------------------------------------------------
     def find_local_tiles(self, geom, quads_dir) -> List[str]:
-        """Return cached composite paths whose bounds overlap geom."""
+        """Return cached composite paths whose bounds overlap geom.
+
+        Composite filenames are deterministic per-AOI (see `_tile_path`),
+        so we can look up this AOI's tile directly instead of scanning and
+        re-opening every `.tif` ever written to `quads_dir`. A full-directory
+        scan here is O(n) per AOI and O(n^2) over the whole job, since
+        `quads_dir` accumulates one file per AOI processed and is never
+        partitioned when `sub_root` is disabled.
+        """
         local_tiles: List[str] = []
         if not os.path.isdir(quads_dir):
             return local_tiles
 
-        for fname in os.listdir(quads_dir):
-            if not fname.endswith(".tif"):
-                continue
-            tile_path = os.path.join(quads_dir, fname)
-            try:
-                with riox.open_rasterio(tile_path) as r:
-                    tile_bounds = box(*r.rio.bounds())
-                if tile_bounds.intersects(geom):
-                    local_tiles.append(tile_path)
-            except Exception:
-                # Skip any file we can't open as a raster.
-                continue
+        tile_path = os.path.join(quads_dir, self._tile_path(geom))
+        if not os.path.isfile(tile_path):
+            return local_tiles
+
+        try:
+            with riox.open_rasterio(tile_path) as r:
+                tile_bounds = box(*r.rio.bounds())
+            if tile_bounds.intersects(geom):
+                local_tiles.append(tile_path)
+        except Exception:
+            # Skip a file we can't open as a raster.
+            pass
         return local_tiles
 
     def has_all_tiles(self, local_tiles, geom) -> bool:
@@ -474,62 +480,26 @@ class MPCSource:
         """
         local_tiles = self.find_local_tiles(geom, quads_dir)
 
-        
         if not local_tiles:
-            print("HERE A", local_tiles)
             local_tiles = self.download_tiles_for_geometry(geom, quads_dir)
         if not local_tiles:
-            print("HERE B ")
             raise RuntimeError(
                 f"No tiles available for geometry at {geom.centroid}"
             )
 
         rasters = [riox.open_rasterio(p) for p in local_tiles]
-        merged = merge_arrays(rasters) if len(rasters) > 1 else rasters[0]
-        # Do NOT overwrite the raster's CRS — trust what's written on disk (UTM).
+        try:
+            merged = merge_arrays(rasters) if len(rasters) > 1 else rasters[0]
+            # Do NOT overwrite the raster's CRS — trust what's written on disk (UTM).
 
-        # Reproject the AOI geometry into the raster's CRS before clipping.
-        raster_crs = merged.rio.crs
-        geom_gdf = gpd.GeoSeries([geom], crs="EPSG:4326").to_crs(raster_crs)
-        clipped = merged.rio.clip(geom_gdf.geometry, geom_gdf.crs, drop=True)
+            # Reproject the AOI geometry into the raster's CRS before clipping.
+            raster_crs = merged.rio.crs
+            geom_gdf = gpd.GeoSeries([geom], crs="EPSG:4326").to_crs(raster_crs)
+            clipped = merged.rio.clip(geom_gdf.geometry, geom_gdf.crs, drop=True)
 
-            
-
-        # rasters = [riox.open_rasterio(p) for p in local_tiles]
-
-        # print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-
-        # print(rasters)
-        
-        # merged = (
-        #     merge_arrays(rasters) if len(rasters) > 1 else rasters[0]
-        # )
-        # merged = merged.rio.write_crs("EPSG:4326")
-
-        # print("MEAN: ", np.mean(merged))
-
-
-        # # Reproject the AOI geometry to the raster's CRS before clipping.
-        # # The raster is in UTM (metres); geom is in WGS84 (degrees).
-        # raster_crs = merged.rio.crs
-        # print("RASTER CRS: ", raster_crs)
-        # if raster_crs is None:
-        #     raise RuntimeError(
-        #         "Merged raster has no CRS. Expected UTM CRS to be preserved "
-        #         "from the cached tile."
-        #     )
-        # geom_gdf = gpd.GeoSeries([geom], crs="EPSG:4326").to_crs(raster_crs)
-        # clipped = merged.rio.clip(geom_gdf.geometry, geom_gdf.crs, drop=True)
-        
-
-        # geom_gdf = gpd.GeoSeries([geom], crs="EPSG:4326")
-        # clipped = merged.rio.clip(
-        #     geom_gdf.geometry, geom_gdf.crs, drop=True
-        # )
-
-        os.makedirs(os.path.dirname(out_path), exist_ok=True)
-        clipped.rio.to_raster(out_path, compress="deflate")
-
-        for r in rasters:
-            r.close()
+            os.makedirs(os.path.dirname(out_path), exist_ok=True)
+            clipped.rio.to_raster(out_path, compress="deflate")
+        finally:
+            for r in rasters:
+                r.close()
         return out_path

@@ -68,7 +68,7 @@ def run_pipeline(cfg):
 
                 update_json(mapping_path, aoi_id, {
                     "label": label,
-                    "tiles_used": [t["id"] for t in local_tiles],
+                    "tiles_used": [os.path.basename(t) for t in local_tiles],
                     "output": clip_path,
                     "status": "complete"
                 })
