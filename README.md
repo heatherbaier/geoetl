@@ -104,17 +104,25 @@ re-fetched.
 
 ## Adding a new imagery source
 
-A source is any class implementing five methods (see `geoetl/io/mpc.py` for
-the most complete reference implementation):
+Subclass `ImagerySource` (`geoetl/io/base.py`) and implement its four
+abstract methods (see `geoetl/io/mpc.py` for the most complete reference
+implementation):
 
 ```python
-class MySource:
+from geoetl.io.base import ImagerySource
+
+class MySource(ImagerySource):
     def set_time_filter(self, year=None, steps=None, cadence="monthly"): ...
     def find_local_tiles(self, geom, quads_dir) -> list[str]: ...
-    def has_all_tiles(self, local_tiles, geom) -> bool: ...
     def download_tiles_for_geometry(self, geom, quads_dir) -> list[str]: ...
     def clip_to_geometry(self, geom, out_path, quads_dir) -> str: ...
 ```
+
+`has_all_tiles(local_tiles, geom)` comes for free from the base class. If
+your source caches multiple grid tiles per AOI (like Planet's quads) rather
+than one deterministically-named composite per AOI (like MPC's), you can
+also get `find_local_tiles` for free by implementing it as
+`return self.scan_local_tiles(quads_dir, geom)`.
 
 Then register it in `geoetl/io/__init__.py:get_source()`.
 

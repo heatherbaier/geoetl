@@ -1,17 +1,14 @@
 import os
-import json
 import geopandas as gpd
 import requests
 import rioxarray as riox
-from shapely.geometry import box
-from shapely.ops import unary_union
-from tqdm import tqdm
 from rioxarray.merge import merge_arrays
 import urllib.request
 
+from geoetl.io.base import ImagerySource
 
 
-class PlanetBasemapSource:
+class PlanetBasemapSource(ImagerySource):
     def __init__(self, api_key, out_root, mosaic_name):
         self.api_key = api_key or os.getenv("PLANET_API_KEY")
         self.out_root = out_root
@@ -62,22 +59,8 @@ class PlanetBasemapSource:
     # ---------------------- Core Methods ----------------------
 
     def find_local_tiles(self, geom, quads_dir):
-        """Return list of cached tiles overlapping a geometry."""
-        local_tiles = []
-        if not os.path.isdir(quads_dir):
-            return local_tiles
-        for fname in os.listdir(quads_dir):
-            if not fname.endswith(".tif"):
-                continue
-            try:
-                tile_path = os.path.join(quads_dir, fname)
-                with riox.open_rasterio(tile_path) as r:
-                    tile_bounds = box(*r.rio.bounds())
-                if tile_bounds.intersects(geom):
-                    local_tiles.append(tile_path)
-            except Exception:
-                continue
-        return local_tiles
+        """Return list of cached quads overlapping a geometry."""
+        return self.scan_local_tiles(quads_dir, geom)
 
     def download_tiles_for_geometry(self, geom, quads_dir):
         """
@@ -159,21 +142,5 @@ class PlanetBasemapSource:
                 r.close()
         return out_path
 
-    def has_all_tiles(self, local_tiles, geom):
-        """
-        Return True if the union of cached tiles fully covers the AOI geometry.
-        """
-        if not local_tiles:
-            return False
-    
-        try:
-            tile_bounds = []
-            for tile_path in local_tiles:
-                with riox.open_rasterio(tile_path) as r:
-                    tile_bounds.append(box(*r.rio.bounds()))
-            merged = unary_union(tile_bounds)
-            return merged.contains(geom)
-        except Exception as e:
-            print(f"⚠️ Error checking tile coverage: {e}")
-            return False
+    # has_all_tiles(local_tiles, geom) is inherited from ImagerySource.
 
