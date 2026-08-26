@@ -1,19 +1,16 @@
 import os
-import json
 import geopandas as gpd
 import requests
 import rioxarray as riox
-from shapely.geometry import box
-from shapely.ops import unary_union
-from tqdm import tqdm
 from rioxarray.merge import merge_arrays
 import urllib.request
 
+from geoetl.io.base import ImagerySource
 
 
-class PlanetBasemapSource:
+class PlanetBasemapSource(ImagerySource):
     def __init__(self, api_key, out_root, mosaic_name):
-        self.api_key = os.getenv("PLANET_API_KEY")
+        self.api_key = api_key or os.getenv("PLANET_API_KEY")
         self.out_root = out_root
         self.mosaic_name = mosaic_name
         # self.cache_dir = quads_dir
@@ -62,26 +59,16 @@ class PlanetBasemapSource:
     # ---------------------- Core Methods ----------------------
 
     def find_local_tiles(self, geom, quads_dir):
-        """Return list of cached tiles overlapping a geometry."""
-        local_tiles = []
-        for fname in os.listdir(quads_dir):
-            if not fname.endswith(".tif"):
-                continue
-            try:
-                tile_path = os.path.join(quads_dir, fname)
-                with riox.open_rasterio(tile_path) as r:
-                    tile_bounds = box(*r.rio.bounds())
-                if tile_bounds.intersects(geom):
-                    local_tiles.append(tile_path)
-            except Exception:
-                continue
-        return local_tiles
+        """Return list of cached quads overlapping a geometry."""
+        return self.scan_local_tiles(quads_dir, geom)
 
     def download_tiles_for_geometry(self, geom, quads_dir):
         """
         Downloads Planet quads intersecting a single AOI geometry.
         Returns a list of downloaded tile file paths.
         """
+        os.makedirs(quads_dir, exist_ok=True)
+
         # Bounding box as [minx, miny, maxx, maxy]
         bounds = geom.bounds
         string_bbox = ",".join(map(str, bounds))
@@ -135,34 +122,25 @@ class PlanetBasemapSource:
 
     def clip_to_geometry(self, geom, out_path, quads_dir):
         """Merge overlapping tiles and clip to geometry."""
-        # local_tiles = self.find_local_tiles(geom)
-        # if not local_tiles:
-        local_tiles = self.download_tiles_for_geometry(geom, quads_dir)
+        local_tiles = self.find_local_tiles(geom, quads_dir)
+        if not local_tiles:
+            local_tiles = self.download_tiles_for_geometry(geom, quads_dir)
+        if not local_tiles:
+            raise RuntimeError(
+                f"No Planet quads available for geometry at {geom.centroid}"
+            )
+
         rasters = [riox.open_rasterio(p) for p in local_tiles]
-        merged = merge_arrays(rasters)                     # ✅ fixed merge
-        merged = merged.rio.write_crs("EPSG:3857")
-        geom_3857 = gpd.GeoSeries([geom], crs="EPSG:4326").to_crs(3857).iloc[0]
-        clipped = merged.rio.clip([geom_3857], merged.rio.crs, drop=True)
-        clipped.rio.to_raster(out_path)
-        for r in rasters:
-            r.close()
+        try:
+            merged = merge_arrays(rasters)
+            merged = merged.rio.write_crs("EPSG:3857")
+            geom_3857 = gpd.GeoSeries([geom], crs="EPSG:4326").to_crs(3857).iloc[0]
+            clipped = merged.rio.clip([geom_3857], merged.rio.crs, drop=True)
+            clipped.rio.to_raster(out_path)
+        finally:
+            for r in rasters:
+                r.close()
         return out_path
 
-    def has_all_tiles(self, local_tiles, geom):
-        """
-        Return True if the union of cached tiles fully covers the AOI geometry.
-        """
-        if not local_tiles:
-            return False
-    
-        try:
-            tile_bounds = []
-            for tile_path in local_tiles:
-                with riox.open_rasterio(tile_path) as r:
-                    tile_bounds.append(box(*r.rio.bounds()))
-            merged = unary_union(tile_bounds)
-            return merged.contains(geom)
-        except Exception as e:
-            print(f"⚠️ Error checking tile coverage: {e}")
-            return False
+    # has_all_tiles(local_tiles, geom) is inherited from ImagerySource.
 

@@ -5,7 +5,30 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "geoetl"
 version = "0.1.0"
+description = "Config-driven ETL for building GeoAI/remote-sensing training datasets from Microsoft Planetary Computer and Planet Labs imagery."
+readme = "README.md"
 requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Heather Baier" },
+]
+dependencies = [
+    "typer",
+    "pyyaml",
+    "geopandas",
+    "numpy",
+    "shapely",
+    "requests",
+    "tqdm",
+    "rioxarray",
+    "xarray",
+    "planetary-computer",
+    "pystac-client",
+    "odc-stac",
+]
+
+[project.optional-dependencies]
+alpha-earth = ["earthengine-api"]
 
 [project.scripts]
 geoetl = "geoetl.cli:app"

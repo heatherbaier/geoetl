@@ -1,19 +1,18 @@
 """
 Microsoft Planetary Computer (MPC) imagery source for geoetl.
 
-Drop-in replacement for GEESource. Implements exactly the interface the
-existing pipeline.py expects on `source`:
+Implements the ImagerySource interface (geoetl/io/base.py):
 
     - set_time_filter(year=, steps=, cadence=)
     - find_local_tiles(geom, quads_dir)
-    - has_all_tiles(local_tiles, geom)
+    - has_all_tiles(local_tiles, geom)          [inherited from ImagerySource]
     - download_tiles_for_geometry(geom, quads_dir)
     - clip_to_geometry(geom, out_path, quads_dir)
 
-Like GEESource, this produces one composite GeoTIFF per AOI per time slice
-(not fixed-grid quads). Composites are built client-side by querying the
-MPC STAC API for items overlapping the AOI within the time window,
-masking clouds, and taking a per-pixel median across the stack.
+This produces one composite GeoTIFF per AOI per time slice (not fixed-grid
+quads). Composites are built client-side by querying the MPC STAC API for
+items overlapping the AOI within the time window, masking clouds, and
+taking a per-pixel median across the stack.
 
 Supported sensors: 'sentinel2', 'landsat8', 'landsat5'.
 
@@ -33,8 +32,8 @@ import rioxarray as riox
 from odc.stac import stac_load
 from rioxarray.merge import merge_arrays
 from shapely.geometry import box, mapping
-from shapely.ops import unary_union
 
+from geoetl.io.base import ImagerySource
 
 MPC_STAC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 
@@ -90,16 +89,15 @@ S2_HARMONIZATION_CUTOFF = "2022-01-25"
 S2_HARMONIZATION_OFFSET = 1000
 
 
-class MPCSource:
+class MPCSource(ImagerySource):
     """
-    Microsoft Planetary Computer source. Same interface as GEESource so
-    the existing pipeline runs without modification.
+    Microsoft Planetary Computer source.
 
     Parameters
     ----------
     out_root : str
         Root directory for output chips/quads (unused internally — kept for
-        signature compatibility with PlanetBasemapSource / GEESource).
+        signature compatibility with PlanetBasemapSource).
     sensor : str
         One of 'sentinel2', 'landsat8', 'landsat5'.
     year : int
@@ -429,26 +427,12 @@ class MPCSource:
             pass
         return local_tiles
 
-    def has_all_tiles(self, local_tiles, geom) -> bool:
-        """True iff the union of local_tiles fully covers geom."""
-        if not local_tiles:
-            return False
-        try:
-            tile_bounds = []
-            for tile_path in local_tiles:
-                with riox.open_rasterio(tile_path) as r:
-                    tile_bounds.append(box(*r.rio.bounds()))
-            merged = unary_union(tile_bounds)
-            return merged.contains(geom)
-        except Exception as e:
-            print(f"⚠️ Error checking tile coverage: {e}")
-            return False
+    # has_all_tiles(local_tiles, geom) is inherited from ImagerySource.
 
     def download_tiles_for_geometry(self, geom, quads_dir) -> List[str]:
         """
         Build a composite covering geom and write it to quads_dir.
-        Returns the list of written tile paths (always 0 or 1 for MPC,
-        same as GEESource).
+        Returns the list of written tile paths (always 0 or 1 for MPC).
         """
         os.makedirs(quads_dir, exist_ok=True)
 
@@ -476,7 +460,6 @@ class MPCSource:
     def clip_to_geometry(self, geom, out_path, quads_dir) -> str:
         """
         Clip the cached composite to geom and write to out_path.
-        Mirrors GEESource.clip_to_geometry.
         """
         local_tiles = self.find_local_tiles(geom, quads_dir)
 
