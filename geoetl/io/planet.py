@@ -13,7 +13,7 @@ import urllib.request
 
 class PlanetBasemapSource:
     def __init__(self, api_key, out_root, mosaic_name):
-        self.api_key = os.getenv("PLANET_API_KEY")
+        self.api_key = api_key or os.getenv("PLANET_API_KEY")
         self.out_root = out_root
         self.mosaic_name = mosaic_name
         # self.cache_dir = quads_dir
@@ -64,6 +64,8 @@ class PlanetBasemapSource:
     def find_local_tiles(self, geom, quads_dir):
         """Return list of cached tiles overlapping a geometry."""
         local_tiles = []
+        if not os.path.isdir(quads_dir):
+            return local_tiles
         for fname in os.listdir(quads_dir):
             if not fname.endswith(".tif"):
                 continue
@@ -82,6 +84,8 @@ class PlanetBasemapSource:
         Downloads Planet quads intersecting a single AOI geometry.
         Returns a list of downloaded tile file paths.
         """
+        os.makedirs(quads_dir, exist_ok=True)
+
         # Bounding box as [minx, miny, maxx, maxy]
         bounds = geom.bounds
         string_bbox = ",".join(map(str, bounds))
@@ -135,17 +139,24 @@ class PlanetBasemapSource:
 
     def clip_to_geometry(self, geom, out_path, quads_dir):
         """Merge overlapping tiles and clip to geometry."""
-        # local_tiles = self.find_local_tiles(geom)
-        # if not local_tiles:
-        local_tiles = self.download_tiles_for_geometry(geom, quads_dir)
+        local_tiles = self.find_local_tiles(geom, quads_dir)
+        if not local_tiles:
+            local_tiles = self.download_tiles_for_geometry(geom, quads_dir)
+        if not local_tiles:
+            raise RuntimeError(
+                f"No Planet quads available for geometry at {geom.centroid}"
+            )
+
         rasters = [riox.open_rasterio(p) for p in local_tiles]
-        merged = merge_arrays(rasters)                     # ✅ fixed merge
-        merged = merged.rio.write_crs("EPSG:3857")
-        geom_3857 = gpd.GeoSeries([geom], crs="EPSG:4326").to_crs(3857).iloc[0]
-        clipped = merged.rio.clip([geom_3857], merged.rio.crs, drop=True)
-        clipped.rio.to_raster(out_path)
-        for r in rasters:
-            r.close()
+        try:
+            merged = merge_arrays(rasters)
+            merged = merged.rio.write_crs("EPSG:3857")
+            geom_3857 = gpd.GeoSeries([geom], crs="EPSG:4326").to_crs(3857).iloc[0]
+            clipped = merged.rio.clip([geom_3857], merged.rio.crs, drop=True)
+            clipped.rio.to_raster(out_path)
+        finally:
+            for r in rasters:
+                r.close()
         return out_path
 
     def has_all_tiles(self, local_tiles, geom):

@@ -33,38 +33,39 @@ def run_pipeline(cfg):
         coords = json.load(f)
 
     mapping_path = os.path.join(out_dir, "aoi_mapping.json")
+    checkpoint_every = cfg["output"].get("checkpoint_every", 25)
 
     # 🧩 define the reusable AOI loop
-    def process_aoi_set(chips_dir, quads_dir, temporal_tag=None):
-        
+    def process_aoi_set(chips_root_dir, quads_root_dir, temporal_tag=None):
+
         for idx, row in gdf.iterrows():
-            
+
+            aoi_id = None
             try:
-            
+
                 if sub_root:
                     sr = str(row[sub_root_column])
-                    chips_dir = os.path.join(chips_dir, sr)
-                    quads_dir = os.path.join(quads_dir, sr)
+                    chips_dir = os.path.join(chips_root_dir, sr)
+                    quads_dir = os.path.join(quads_root_dir, sr)
                     os.makedirs(chips_dir, exist_ok=True)
                     os.makedirs(quads_dir, exist_ok=True)
+                else:
+                    chips_dir = chips_root_dir
+                    quads_dir = quads_root_dir
 
                 aoi_id = str(row[uid_column])
                 label = row[label_col] if label_col else None
                 clip_path = os.path.join(chips_dir, f"{aoi_id}.tif")
-
-                print(aoi_id, label, clip_path)
-                print(row.geometry)
 
                 if os.path.exists(clip_path):
                     print(f"Skipping {aoi_id} (already processed)")
                     continue
 
                 local_tiles = source.find_local_tiles(row.geometry, quads_dir)
-                print(local_tiles)
                 if not source.has_all_tiles(local_tiles, row.geometry):
-                    new_tiles = source.download_tiles_for_geometry(row.geometry, quads_dir)
+                    source.download_tiles_for_geometry(row.geometry, quads_dir)
 
-                clipped = source.clip_to_geometry(row.geometry, clip_path, quads_dir)
+                source.clip_to_geometry(row.geometry, clip_path, quads_dir)
 
                 update_json(mapping_path, aoi_id, {
                     "label": label,
@@ -89,14 +90,14 @@ def run_pipeline(cfg):
 
                 coords[clip_path] = [row.geometry.centroid.x, row.geometry.centroid.y]
 
-                if idx % 1 == 0:
+                if idx % checkpoint_every == 0:
                     with open(coords_path, "w") as f:
                         json.dump(coords, f)
                     with open(labels_path, "w") as f:
                         json.dump(labels, f)
 
             except Exception as e:
-                print(f"⚠️ Error on AOI {aoi_id}: {e}")
+                print(f"⚠️ Error on AOI {aoi_id if aoi_id is not None else idx}: {e}")
                 continue
 
     # 🕓 temporal logic
