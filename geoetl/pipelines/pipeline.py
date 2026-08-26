@@ -1,4 +1,5 @@
 from geoetl.io import get_source
+from geoetl.io.base import AOITooLargeError
 from geoetl.utils.jsonio import update_json
 import geopandas as gpd
 import json
@@ -45,6 +46,20 @@ def run_pipeline(cfg):
     mapping_path = os.path.join(out_dir, "aoi_mapping.json")
     checkpoint_every = cfg["output"].get("checkpoint_every", 25)
     processed_count = 0
+
+    # AOIs skipped for being too large to build (see AOITooLargeError) get
+    # logged here so they're easy to find and revisit later, instead of
+    # only showing up as one line buried in a SLURM job log. Read any
+    # existing entries first so repeated/resumed runs don't keep
+    # re-appending the same AOI id every time it's retried and re-skipped.
+    skipped_path = os.path.join(out_dir, "skipped_oversized_aois.txt")
+    already_logged_skips = set()
+    if os.path.exists(skipped_path):
+        with open(skipped_path) as f:
+            for line in f:
+                aoi = line.split("\t", 1)[0].strip()
+                if aoi:
+                    already_logged_skips.add(aoi)
 
     # 🧩 define the reusable AOI loop
     def process_aoi_set(chips_root_dir, quads_root_dir, temporal_tag=None):
@@ -110,6 +125,15 @@ def run_pipeline(cfg):
                         json.dump(coords, f)
                     with open(labels_path, "w") as f:
                         json.dump(labels, f)
+
+            except AOITooLargeError as e:
+                label_for_log = aoi_id if aoi_id is not None else str(idx)
+                print(f"⚠️ Skipping AOI {label_for_log} (too large to build): {e}")
+                if label_for_log not in already_logged_skips:
+                    with open(skipped_path, "a") as f:
+                        f.write(f"{label_for_log}\t{e}\n")
+                    already_logged_skips.add(label_for_log)
+                continue
 
             except Exception as e:
                 print(f"⚠️ Error on AOI {aoi_id if aoi_id is not None else idx}: {e}")

@@ -16,6 +16,16 @@ from shapely.geometry import box
 from shapely.ops import unary_union
 
 
+class AOITooLargeError(RuntimeError):
+    """Raised when an AOI's composite would exceed a source's size cap.
+
+    A distinct type (rather than a plain RuntimeError) so pipeline.py can
+    tell "this AOI was deliberately skipped for being oversized" apart from
+    other failures (network errors, no imagery found, etc.) and log it
+    separately instead of lumping it in with ordinary per-AOI errors.
+    """
+
+
 class ImagerySource(ABC):
     """
     Common interface for all imagery sources (MPC, Planet, ...).
