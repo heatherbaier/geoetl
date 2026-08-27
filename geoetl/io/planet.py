@@ -9,7 +9,8 @@ from geoetl.io.base import ImagerySource
 
 
 class PlanetBasemapSource(ImagerySource):
-    def __init__(self, api_key, out_root, mosaic_name):
+    def __init__(self, api_key, out_root, mosaic_name, output_format="tif", png_scale_divisor=257):
+        super().__init__(output_format=output_format, png_scale_divisor=png_scale_divisor)
         self.api_key = api_key or os.getenv("PLANET_API_KEY")
         self.out_root = out_root
         self.mosaic_name = mosaic_name
@@ -143,7 +144,7 @@ class PlanetBasemapSource(ImagerySource):
             merged = merged.rio.write_crs("EPSG:3857")
             geom_3857 = gpd.GeoSeries([geom], crs="EPSG:4326").to_crs(3857).iloc[0]
             clipped = merged.rio.clip([geom_3857], merged.rio.crs, drop=True)
-            clipped.rio.to_raster(out_path)
+            self.write_chip(clipped, out_path)
         finally:
             for r in rasters:
                 r.close()

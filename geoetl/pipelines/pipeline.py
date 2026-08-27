@@ -25,6 +25,23 @@ def run_pipeline(cfg):
     sub_root = cfg["output"].get("sub_root")
     sub_root_column = cfg["output"].get("sub_root_column")
 
+    chip_ext = "png" if cfg["output"].get("format", "tif") == "png" else "tif"
+
+    # Fail fast, once, before touching any AOI: a sensor configured with
+    # more than 4 bands can never be written as PNG (see
+    # ImagerySource.write_chip). Every AOI in a run shares the same band
+    # count, so there's no reason to discover this 800 skipped-AOIs into a
+    # job -- check it up front instead.
+    if chip_ext == "png":
+        sensor_bands = getattr(source, "cfg", {}).get("bands")
+        if sensor_bands and len(sensor_bands) > 4:
+            raise ValueError(
+                f"catalog.sensor={cfg['catalog']['sensor']} has "
+                f"{len(sensor_bands)} bands ({list(sensor_bands)}) but "
+                f"output.format=png supports at most 4. Reduce this "
+                f"sensor's band list, or set output.format back to 'tif'."
+            )
+
     chips_root = os.path.join(out_dir, "chips")
     quads_root = os.path.join(out_dir, "quads")
     os.makedirs(chips_root, exist_ok=True)
@@ -82,7 +99,7 @@ def run_pipeline(cfg):
 
                 aoi_id = str(row[uid_column])
                 label = row[label_col] if label_col else None
-                clip_path = os.path.join(chips_dir, f"{aoi_id}.tif")
+                clip_path = os.path.join(chips_dir, f"{aoi_id}.{chip_ext}")
 
                 if os.path.exists(clip_path):
                     print(f"Skipping {aoi_id} (already processed)")

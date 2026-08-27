@@ -61,12 +61,18 @@ from .mpc import MPCSource
 def get_source(sensor, cfg=None):
     """Factory method to get the appropriate imagery source."""
     sensor_lower = sensor.lower()
+    output_format = cfg.get("output", {}).get("format", "tif")
+    png_scale_divisor = cfg.get("output", {}).get("png_scale_divisor", 257)
 
     if sensor_lower == "planet":
         api_key = cfg["auth"]["api_key"]
         mosaic = cfg["catalog"]["composite"]
         out_root = cfg["output"]["root"]
-        return PlanetBasemapSource(api_key, out_root, mosaic)
+        return PlanetBasemapSource(
+            api_key, out_root, mosaic,
+            output_format=output_format,
+            png_scale_divisor=png_scale_divisor,
+        )
 
     # elif sensor_lower in ("landsat5", "landsat8", "sentinel2"):
     #     out_root = cfg["output"]["root"]
@@ -123,6 +129,8 @@ def get_source(sensor, cfg=None):
             end_date=end_date,
             api_key=api_key,
             mask_clouds=mask_clouds,
+            output_format=output_format,
+            png_scale_divisor=png_scale_divisor,
         )
 
     else:

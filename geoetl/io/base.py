@@ -42,6 +42,10 @@ class ImagerySource(ABC):
     when `temporal.enabled` is set in the config.
     """
 
+    def __init__(self, output_format: str = "tif", png_scale_divisor: float = 257):
+        self.output_format = output_format
+        self.png_scale_divisor = png_scale_divisor
+
     @abstractmethod
     def set_time_filter(self, year=None, steps=None, cadence="monthly"):
         """Update the source's active time window for subsequent composites."""
@@ -109,6 +113,38 @@ class ImagerySource(ABC):
                 # Skip a file we can't open as a raster.
                 continue
         return local_tiles
+
+    def write_chip(self, data, out_path: str):
+        """
+        Write a clipped chip DataArray to out_path as either GeoTIFF or PNG,
+        per self.output_format. The only thing that decides the format is
+        this method -- sources just call it instead of hand-rolling
+        rio.to_raster(), so every source's PNG behavior stays identical.
+
+        PNG output: GDAL's PNG driver caps out at 4 bands (RGB/RGBA), so a
+        sensor configured with more bands than that raises ValueError rather
+        than silently dropping bands -- band selection for PNG export is a
+        deliberate per-sensor config choice, not something to guess at.
+        Pixel values are scaled from uint16 to uint8 via a fixed divisor
+        (self.png_scale_divisor, default 257 -- the full uint16 range mapped
+        onto 0-255) rather than a per-image stretch, so brightness is
+        directly comparable across every chip in the dataset. Reflectance
+        values are usually a small fraction of the uint16 range, so images
+        may look dark at the default divisor -- tune png_scale_divisor in
+        the sensor config to match your actual data's value range.
+        """
+        if self.output_format == "png":
+            n_bands = data.sizes.get("band", 1)
+            if n_bands > 4:
+                raise ValueError(
+                    f"Cannot write {n_bands}-band data as PNG (max 4: RGB or "
+                    f"RGBA). Reduce this sensor's band list to <=4 bands, or "
+                    f"set output.format back to 'tif' for this config."
+                )
+            scaled = (data // self.png_scale_divisor).clip(0, 255).astype("uint8")
+            scaled.rio.to_raster(out_path, driver="PNG")
+        else:
+            data.rio.to_raster(out_path, compress="deflate")
 
     @staticmethod
     def is_valid_raster(path: str) -> bool:

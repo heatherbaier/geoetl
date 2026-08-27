@@ -60,6 +60,12 @@ catalog:
   end_date: "2020-12-31"
   cloud_cover_max: 30            # MPC only: max eo:cloud_cover percent
   mask_clouds: false             # MPC only: apply cloud masking before compositing
+  chunk_px: 1024                 # MPC only: dask spatial chunk size in pixels (default 1024).
+                                  # Bounds peak memory when building a composite -- lower it if
+                                  # you still see high memory use on unusually large AOIs.
+  max_composite_mb: 8000         # MPC only: skip (not crash on) an AOI whose composite would
+                                  # exceed this uncompressed size in MB (default 8000 = ~8GB).
+                                  # Skipped AOI ids are logged to skipped_oversized_aois.txt.
 
 auth:
   mpc_api_key: null              # optional MPC subscription key (higher throughput)
@@ -70,6 +76,17 @@ output:
   sub_root: False                # if True, partition output into subfolders...
   sub_root_column: iso           # ...named after this AOI column (e.g. one folder per country)
   checkpoint_every: 25           # write labels/coords JSON to disk every N AOIs (default 25)
+  format: tif                    # 'tif' (default) or 'png' for the final per-AOI chip.
+                                  # Cached tiles in quads/ always stay GeoTIFF regardless.
+                                  # PNG requires the sensor to have <=4 bands (RGB/RGBA) --
+                                  # geoetl fails fast at startup if it doesn't.
+  png_scale_divisor: 257         # PNG only: uint16 pixel values are floor-divided by this to
+                                  # fit 0-255 (default 257 = full uint16 range -> 0-255). The
+                                  # same divisor is applied to every chip, so brightness stays
+                                  # comparable across the dataset -- but reflectance values are
+                                  # usually a small fraction of the uint16 range, so images can
+                                  # look dark at the default. Tune this to your sensor's actual
+                                  # value range rather than relying on the default.
 
 params:
   uid_column: GEOID              # AOI shapefile column used as the unique chip ID
@@ -91,9 +108,11 @@ and `sub_root`-partitioned regional runs).
 
 ```
 <output.root>/
-  chips/<aoi_id>.tif                  # per-AOI clipped chip (or nested under sub_root / temporal step)
-  quads/                              # cached source tiles, reused across AOIs/runs
+  chips/<aoi_id>.tif                  # per-AOI clipped chip (.png if output.format=png;
+                                       # or nested under sub_root / temporal step)
+  quads/                              # cached source tiles (always GeoTIFF), reused across AOIs/runs
   aoi_mapping.json                    # per-AOI status + which tiles were used
+  skipped_oversized_aois.txt          # AOI ids skipped for exceeding max_composite_mb (MPC only)
   <dataset_name>_ys.json              # labels
   <dataset_name>_coords.json          # AOI centroid coordinates
 ```
