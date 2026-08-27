@@ -560,7 +560,16 @@ class MPCSource(ImagerySource):
             # Reproject the AOI geometry into the raster's CRS before clipping.
             raster_crs = merged.rio.crs
             geom_gdf = gpd.GeoSeries([geom], crs="EPSG:4326").to_crs(raster_crs)
+            raster_dtype = merged.dtype
             clipped = merged.rio.clip(geom_gdf.geometry, geom_gdf.crs, drop=True)
+            # rio.clip() fills pixels outside the polygon (but inside its
+            # bounding box) with NaN when no nodata value is declared,
+            # silently promoting the array to float64. That's invisible for
+            # TIFF output (GeoTIFF viewers treat NaN as nodata/transparent)
+            # but produces genuinely wrong output either way: a "uint16
+            # reflectance x10000" chip that's actually float64, and for PNG
+            # (no nodata concept) NaN casts to 0 -- solid black pixels.
+            clipped = clipped.fillna(0).astype(raster_dtype)
 
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             self.write_chip(clipped, out_path)
