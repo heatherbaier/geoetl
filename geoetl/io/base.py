@@ -141,7 +141,11 @@ class ImagerySource(ABC):
                     f"RGBA). Reduce this sensor's band list to <=4 bands, or "
                     f"set output.format back to 'tif' for this config."
                 )
-            scaled = (data // self.png_scale_divisor).clip(0, 255).astype("uint8")
+            # fillna before the int cast -- casting NaN to an integer dtype
+            # is undefined (numpy emits "invalid value encountered in cast"
+            # and typically yields 0), which would silently turn any masked/
+            # nodata pixel black instead of a defined value.
+            scaled = (data.fillna(0) // self.png_scale_divisor).clip(0, 255).astype("uint8")
             scaled.rio.to_raster(out_path, driver="PNG")
         else:
             data.rio.to_raster(out_path, compress="deflate")

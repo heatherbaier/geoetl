@@ -142,8 +142,15 @@ class PlanetBasemapSource(ImagerySource):
         try:
             merged = merge_arrays(rasters)
             merged = merged.rio.write_crs("EPSG:3857")
+            raster_dtype = merged.dtype
             geom_3857 = gpd.GeoSeries([geom], crs="EPSG:4326").to_crs(3857).iloc[0]
             clipped = merged.rio.clip([geom_3857], merged.rio.crs, drop=True)
+            # See MPCSource.clip_to_geometry: rio.clip() fills outside-polygon
+            # pixels with NaN (promoting to float64) when no nodata is
+            # declared -- fillna + restore the original dtype so output is
+            # well-defined for both TIFF and PNG instead of NaN silently
+            # becoming a float64 GeoTIFF or a black PNG pixel.
+            clipped = clipped.fillna(0).astype(raster_dtype)
             self.write_chip(clipped, out_path)
         finally:
             for r in rasters:
