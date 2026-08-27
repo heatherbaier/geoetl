@@ -9,8 +9,14 @@ from geoetl.io.base import ImagerySource
 
 
 class PlanetBasemapSource(ImagerySource):
-    def __init__(self, api_key, out_root, mosaic_name, output_format="tif", png_scale_divisor=257):
-        super().__init__(output_format=output_format, png_scale_divisor=png_scale_divisor)
+    def __init__(self, api_key, out_root, mosaic_name, output_format="tif", png_scale_divisor=257,
+                 png_scale_mode="fixed", png_scale_calibration_path=None):
+        super().__init__(
+            output_format=output_format,
+            png_scale_divisor=png_scale_divisor,
+            png_scale_mode=png_scale_mode,
+            png_scale_calibration_path=png_scale_calibration_path,
+        )
         self.api_key = api_key or os.getenv("PLANET_API_KEY")
         self.out_root = out_root
         self.mosaic_name = mosaic_name

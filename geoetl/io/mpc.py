@@ -127,7 +127,12 @@ class MPCSource(ImagerySource):
         composites in quads_dir always stay GeoTIFF regardless -- see
         ImagerySource.write_chip.
     png_scale_divisor : float
-        Only used when output_format='png'. See ImagerySource.write_chip.
+        Only used when output_format='png' and png_scale_mode='fixed'.
+        See ImagerySource.write_chip.
+    png_scale_mode : str
+        'fixed' (default) or 'auto'. See ImagerySource._get_png_divisor.
+    png_scale_calibration_path : str or None
+        Only used when png_scale_mode='auto'. See ImagerySource._get_png_divisor.
     """
 
     def __init__(self,
@@ -141,8 +146,15 @@ class MPCSource(ImagerySource):
                  api_key=None,
                  mask_clouds=True,
                  output_format="tif",
-                 png_scale_divisor=257):
-        super().__init__(output_format=output_format, png_scale_divisor=png_scale_divisor)
+                 png_scale_divisor=257,
+                 png_scale_mode="fixed",
+                 png_scale_calibration_path=None):
+        super().__init__(
+            output_format=output_format,
+            png_scale_divisor=png_scale_divisor,
+            png_scale_mode=png_scale_mode,
+            png_scale_calibration_path=png_scale_calibration_path,
+        )
 
         self.mask_clouds = mask_clouds
         self.out_root = out_root

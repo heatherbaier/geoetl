@@ -80,13 +80,21 @@ output:
                                   # Cached tiles in quads/ always stay GeoTIFF regardless.
                                   # PNG requires the sensor to have <=4 bands (RGB/RGBA) --
                                   # geoetl fails fast at startup if it doesn't.
-  png_scale_divisor: 257         # PNG only: uint16 pixel values are floor-divided by this to
-                                  # fit 0-255 (default 257 = full uint16 range -> 0-255). The
-                                  # same divisor is applied to every chip, so brightness stays
-                                  # comparable across the dataset -- but reflectance values are
-                                  # usually a small fraction of the uint16 range, so images can
-                                  # look dark at the default. Tune this to your sensor's actual
-                                  # value range rather than relying on the default.
+  png_scale_mode: fixed          # PNG only: 'fixed' (default, uses png_scale_divisor below) or
+                                  # 'auto'. 'auto' calibrates the divisor once, from the 98th
+                                  # percentile pixel value of the first chip actually written,
+                                  # then reuses that exact value for every subsequent chip in
+                                  # the dataset (persisted to png_scale_calibration.json, so a
+                                  # resumed run doesn't recalibrate from a different AOI). Either
+                                  # way it's one fixed value applied identically across the whole
+                                  # dataset, not a per-image stretch -- brightness stays
+                                  # comparable chip-to-chip.
+  png_scale_divisor: 257         # PNG only, png_scale_mode=fixed: uint16 pixel values are
+                                  # floor-divided by this to fit 0-255 (default 257 = full
+                                  # uint16 range -> 0-255). Reflectance values are usually a
+                                  # small fraction of the uint16 range, so images can look dark
+                                  # at the default -- either tune this down to your sensor's
+                                  # actual value range, or use png_scale_mode: auto instead.
 
 params:
   uid_column: GEOID              # AOI shapefile column used as the unique chip ID
@@ -113,6 +121,7 @@ and `sub_root`-partitioned regional runs).
   quads/                              # cached source tiles (always GeoTIFF), reused across AOIs/runs
   aoi_mapping.json                    # per-AOI status + which tiles were used
   skipped_oversized_aois.txt          # AOI ids skipped for exceeding max_composite_mb (MPC only)
+  png_scale_calibration.json          # only if output.png_scale_mode=auto
   <dataset_name>_ys.json              # labels
   <dataset_name>_coords.json          # AOI centroid coordinates
 ```
