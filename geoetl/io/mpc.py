@@ -122,19 +122,28 @@ class MPCSource(ImagerySource):
         Explicit ISO date overrides (YYYY-MM-DD). Take priority over year/month.
     api_key : str or None
         MPC subscription key. Falls back to PC_SDK_SUBSCRIPTION_KEY env var.
+    output_format : str
+        'tif' (default) or 'png' for the final per-AOI chip. Cached
+        composites in quads_dir always stay GeoTIFF regardless -- see
+        ImagerySource.write_chip.
+    png_scale_divisor : float
+        Only used when output_format='png'. See ImagerySource.write_chip.
     """
 
-    def __init__(self, 
-                 out_root, 
-                 sensor="sentinel2", 
-                 year=2020, 
-                 month=None, 
-                 cloud_cover_max=20, 
-                 start_date=None, 
-                 end_date=None, 
-                 api_key=None, 
-                 mask_clouds=True):
-    
+    def __init__(self,
+                 out_root,
+                 sensor="sentinel2",
+                 year=2020,
+                 month=None,
+                 cloud_cover_max=20,
+                 start_date=None,
+                 end_date=None,
+                 api_key=None,
+                 mask_clouds=True,
+                 output_format="tif",
+                 png_scale_divisor=257):
+        super().__init__(output_format=output_format, png_scale_divisor=png_scale_divisor)
+
         self.mask_clouds = mask_clouds
         self.out_root = out_root
         self.sensor = sensor.lower()
@@ -554,7 +563,7 @@ class MPCSource(ImagerySource):
             clipped = merged.rio.clip(geom_gdf.geometry, geom_gdf.crs, drop=True)
 
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
-            clipped.rio.to_raster(out_path, compress="deflate")
+            self.write_chip(clipped, out_path)
         finally:
             for r in rasters:
                 r.close()
