@@ -34,6 +34,7 @@ os.environ.setdefault("CPL_VSIL_CURL_CACHE_SIZE", "268435456")  # 256MB, /vsicur
 os.environ.setdefault("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
 
 import calendar
+import hashlib
 from typing import List, Optional
 
 import geopandas as gpd
@@ -133,6 +134,15 @@ class MPCSource(ImagerySource):
         'fixed' (default) or 'auto'. See ImagerySource._get_png_divisor.
     png_scale_calibration_path : str or None
         Only used when png_scale_mode='auto'. See ImagerySource._get_png_divisor.
+    bands : list of str or None
+        Override this sensor's default band list (SENSOR_CONFIGS[sensor]["bands"]).
+        E.g. bands=["B04", "B03", "B02", "B08", "B11"] to add NIR + SWIR1 to
+        Sentinel-2's default RGB-only set. Leave as None to use the default.
+        Only the band list is overridden -- scale_factor/offset/collection
+        etc. still come from SENSOR_CONFIGS, and this instance's override
+        never mutates the shared SENSOR_CONFIGS dict, so other MPCSource
+        instances (or a second config run in the same process) are
+        unaffected.
     """
 
     def __init__(self,
@@ -148,7 +158,8 @@ class MPCSource(ImagerySource):
                  output_format="tif",
                  png_scale_divisor=257,
                  png_scale_mode="fixed",
-                 png_scale_calibration_path=None):
+                 png_scale_calibration_path=None,
+                 bands=None):
         super().__init__(
             output_format=output_format,
             png_scale_divisor=png_scale_divisor,
@@ -170,8 +181,15 @@ class MPCSource(ImagerySource):
                 f"Unknown sensor '{sensor}'. "
                 f"Choose from: {list(SENSOR_CONFIGS.keys())}"
             )
-        self.cfg = SENSOR_CONFIGS[self.sensor]
-        
+        # Copy, don't mutate the module-level SENSOR_CONFIGS dict -- a
+        # per-instance bands override must not leak into other MPCSource
+        # instances or later config runs in the same process.
+        self.cfg = dict(SENSOR_CONFIGS[self.sensor])
+        if bands:
+            if not isinstance(bands, (list, tuple)) or not bands:
+                raise ValueError(f"bands override must be a non-empty list, got: {bands!r}")
+            self.cfg["bands"] = list(bands)
+
         # Honour explicit api_key argument, else env var, else anonymous.
         api_key = api_key or os.environ.get("PC_SDK_SUBSCRIPTION_KEY")
         if api_key:
@@ -241,12 +259,23 @@ class MPCSource(ImagerySource):
         Deterministic per-AOI composite filename. Mirrors GEESource layout
         and additionally includes cloud_cover_max so cache entries built
         with different thresholds don't collide.
+
+        Also includes a short fingerprint of the active band list. Without
+        this, changing `bands` (via the constructor override or by editing
+        SENSOR_CONFIGS) while pointing at a `quads_dir` that already has
+        cached composites from a previous run would make find_local_tiles /
+        has_all_tiles treat the old, differently-banded composite as valid
+        and silently reuse it -- no error, just a composite missing
+        whatever bands were added since. The fingerprint forces a rebuild
+        instead whenever the band list changes.
         """
         c = geom.centroid
         cc = int(round(self.cloud_cover_max))
+        band_tag = "-".join(self.cfg["bands"])
+        band_hash = hashlib.sha1(band_tag.encode()).hexdigest()[:8]
         tag = (
             f"mpc_{self.sensor}_{self.year}_{self.month}_"
-            f"cc{cc}_{c.x:.4f}_{c.y:.4f}"
+            f"cc{cc}_b{band_hash}_{c.x:.4f}_{c.y:.4f}"
         )
         tag = tag.replace("-", "n").replace(".", "p")
         return tag + ".tif"
