@@ -52,6 +52,8 @@
 
 
 
+import os
+
 from .planet import PlanetBasemapSource
 # from .gee import GEESource
 # from .alpha_earth import AlphaEarthSource
@@ -63,6 +65,10 @@ def get_source(sensor, cfg=None):
     sensor_lower = sensor.lower()
     output_format = cfg.get("output", {}).get("format", "tif")
     png_scale_divisor = cfg.get("output", {}).get("png_scale_divisor", 257)
+    png_scale_mode = cfg.get("output", {}).get("png_scale_mode", "fixed")
+    png_scale_calibration_path = os.path.join(
+        cfg["output"]["root"], "png_scale_calibration.json"
+    )
 
     if sensor_lower == "planet":
         api_key = cfg["auth"]["api_key"]
@@ -72,6 +78,8 @@ def get_source(sensor, cfg=None):
             api_key, out_root, mosaic,
             output_format=output_format,
             png_scale_divisor=png_scale_divisor,
+            png_scale_mode=png_scale_mode,
+            png_scale_calibration_path=png_scale_calibration_path,
         )
 
     # elif sensor_lower in ("landsat5", "landsat8", "sentinel2"):
@@ -131,6 +139,8 @@ def get_source(sensor, cfg=None):
             mask_clouds=mask_clouds,
             output_format=output_format,
             png_scale_divisor=png_scale_divisor,
+            png_scale_mode=png_scale_mode,
+            png_scale_calibration_path=png_scale_calibration_path,
         )
 
     else:

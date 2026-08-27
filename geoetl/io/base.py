@@ -7,10 +7,12 @@ implement, and shared helpers for the local-tile-cache bookkeeping that
 and whether the cached tiles fully cover it).
 """
 
+import json
 import os
 from abc import ABC, abstractmethod
 from typing import List
 
+import numpy as np
 import rioxarray as riox
 from shapely.geometry import box
 from shapely.ops import unary_union
@@ -42,9 +44,18 @@ class ImagerySource(ABC):
     when `temporal.enabled` is set in the config.
     """
 
-    def __init__(self, output_format: str = "tif", png_scale_divisor: float = 257):
+    def __init__(
+        self,
+        output_format: str = "tif",
+        png_scale_divisor: float = 257,
+        png_scale_mode: str = "fixed",
+        png_scale_calibration_path: str = None,
+    ):
         self.output_format = output_format
         self.png_scale_divisor = png_scale_divisor
+        self.png_scale_mode = png_scale_mode
+        self.png_scale_calibration_path = png_scale_calibration_path
+        self._calibrated_divisor = None
 
     @abstractmethod
     def set_time_filter(self, year=None, steps=None, cadence="monthly"):
@@ -125,13 +136,11 @@ class ImagerySource(ABC):
         sensor configured with more bands than that raises ValueError rather
         than silently dropping bands -- band selection for PNG export is a
         deliberate per-sensor config choice, not something to guess at.
-        Pixel values are scaled from uint16 to uint8 via a fixed divisor
-        (self.png_scale_divisor, default 257 -- the full uint16 range mapped
-        onto 0-255) rather than a per-image stretch, so brightness is
-        directly comparable across every chip in the dataset. Reflectance
-        values are usually a small fraction of the uint16 range, so images
-        may look dark at the default divisor -- tune png_scale_divisor in
-        the sensor config to match your actual data's value range.
+        Pixel values are scaled from uint16 to uint8 via one fixed divisor
+        applied identically to every chip (self.png_scale_divisor if
+        png_scale_mode='fixed', or an auto-calibrated value -- see
+        _get_png_divisor) rather than a per-image stretch, so brightness
+        stays directly comparable across the whole dataset.
         """
         if self.output_format == "png":
             n_bands = data.sizes.get("band", 1)
@@ -141,14 +150,73 @@ class ImagerySource(ABC):
                     f"RGBA). Reduce this sensor's band list to <=4 bands, or "
                     f"set output.format back to 'tif' for this config."
                 )
+            divisor = self._get_png_divisor(data)
             # fillna before the int cast -- casting NaN to an integer dtype
             # is undefined (numpy emits "invalid value encountered in cast"
             # and typically yields 0), which would silently turn any masked/
             # nodata pixel black instead of a defined value.
-            scaled = (data.fillna(0) // self.png_scale_divisor).clip(0, 255).astype("uint8")
+            scaled = (data.fillna(0) // divisor).clip(0, 255).astype("uint8")
             scaled.rio.to_raster(out_path, driver="PNG")
         else:
             data.rio.to_raster(out_path, compress="deflate")
+
+    def _get_png_divisor(self, data) -> float:
+        """
+        Return the uint16->uint8 divisor to use for this chip.
+
+        png_scale_mode='fixed' (default): just self.png_scale_divisor,
+        chosen manually in config.
+
+        png_scale_mode='auto': instead of guessing a divisor, calibrate one
+        from the first chip actually written this run -- its 98th
+        percentile nonzero pixel value, mapped to 255 -- then reuse that
+        exact value for every subsequent chip. Still one fixed value
+        applied identically across the whole dataset (brightness stays
+        comparable chip-to-chip), just chosen from real data instead of a
+        blind default. The calibration is persisted to
+        png_scale_calibration_path so a resumed/restarted run reuses the
+        same value rather than recalibrating from whatever AOI happens to
+        run first.
+        """
+        if self.png_scale_mode != "auto":
+            return self.png_scale_divisor
+
+        if self._calibrated_divisor is not None:
+            return self._calibrated_divisor
+
+        if self.png_scale_calibration_path and os.path.isfile(self.png_scale_calibration_path):
+            try:
+                with open(self.png_scale_calibration_path) as f:
+                    self._calibrated_divisor = json.load(f)["png_scale_divisor"]
+                print(f"🎨 Reusing persisted PNG scale calibration: divisor={self._calibrated_divisor:.2f}")
+                return self._calibrated_divisor
+            except Exception:
+                pass  # fall through and calibrate fresh from this chip
+
+        valid = data.values[data.values > 0]
+        if valid.size == 0:
+            # Nothing to calibrate from (e.g. an all-nodata chip) -- fall
+            # back to the manual default for this one chip, but don't lock
+            # it in as the permanent calibration.
+            return self.png_scale_divisor
+
+        p98 = float(np.percentile(valid, 98))
+        self._calibrated_divisor = max(p98 / 255.0, 1.0)
+        print(
+            f"🎨 Calibrated PNG scale from this chip's data: divisor="
+            f"{self._calibrated_divisor:.2f} (98th percentile pixel value "
+            f"{p98:.0f}). Reused for every chip in this dataset."
+        )
+
+        if self.png_scale_calibration_path:
+            try:
+                os.makedirs(os.path.dirname(self.png_scale_calibration_path), exist_ok=True)
+                with open(self.png_scale_calibration_path, "w") as f:
+                    json.dump({"png_scale_divisor": self._calibrated_divisor}, f)
+            except Exception as e:
+                print(f"⚠️ Failed to persist PNG scale calibration: {e}")
+
+        return self._calibrated_divisor
 
     @staticmethod
     def is_valid_raster(path: str) -> bool:
