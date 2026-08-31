@@ -127,6 +127,11 @@ def get_source(sensor, cfg=None):
         cloud_cover_max = cfg.get("catalog", {}).get("cloud_cover_max", 20)
         api_key = cfg.get("auth", {}).get("mpc_api_key", None)
         mask_clouds = cfg.get("catalog", {}).get("mask_clouds", True)
+        # Optional per-config band override, e.g.:
+        #   catalog:
+        #     bands: ["B04", "B03", "B02", "B08", "B11"]
+        # Leave unset to use SENSOR_CONFIGS[sensor]["bands"] (see mpc.py).
+        bands = cfg.get("catalog", {}).get("bands", None)
         return MPCSource(
             out_root=out_root,
             sensor=mpc_sensor,
@@ -141,6 +146,7 @@ def get_source(sensor, cfg=None):
             png_scale_divisor=png_scale_divisor,
             png_scale_mode=png_scale_mode,
             png_scale_calibration_path=png_scale_calibration_path,
+            bands=bands,
         )
 
     else:
