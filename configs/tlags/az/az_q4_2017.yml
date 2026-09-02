@@ -3,20 +3,20 @@ aoi:
 
 catalog:
   sensor: mpc_sentinel2
-  start_date: "2017-01-01"
-  end_date: "2017-03-31"
+  start_date: "2017-10-01"
+  end_date: "2017-12-31"
   cloud_cover_max: 30
   mask_clouds: false
   bands: ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12"]
-  
+
 auth:
   mpc_api_key: null
 
 output:
-  root: /data/hbaier/new_data/tlag/az_imagery/q1_2017_s2_allbands/
+  root: /data/hbaier/new_data/tlag/az_imagery/q4_2017_s2_allbands/
   sub_root: False
 
 params:
   uid_column: GEOID
   label_column: wealth_ind
-  dataset_name: az_2017_q1_s2_allbands
+  dataset_name: az_2017_q4_s2_allbands
