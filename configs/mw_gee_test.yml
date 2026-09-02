@@ -1,0 +1,30 @@
+aoi:
+  path: /data/hbaier/new_data/geomasking/mw/landsat/indicators/point_buffers/mw_4p5km_buffers_10samps.shp
+
+catalog:
+  sensor: landsat5
+  composite: LANDSAT/LT05/C02/T1_L2
+  year: 2010
+  start_date: "2008-01-01"
+  end_date: "2009-12-31"
+  
+auth:
+  api_key: ${PLANET_API_KEY}   # or just put the key string here
+
+output:
+  root: /data/hbaier/new_data/geomasking/mw/landsat/imagery_10samps/
+  sub_root: False
+  
+params:
+  uid_column: samp_id
+  label_column: avg_weal_1
+  dataset_name: mwGEE2016
+
+
+
+
+# {
+#   "catalog": { "sensor": "landsat", "year": 2020, "month": 8 },
+#   "auth": { "ee_project": "your-gee-project-id" },
+#   "output": { "root": "/path/to/output" }
+# }
