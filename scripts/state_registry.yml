@@ -1,0 +1,30 @@
+# Per-state settings for scripts/generate_download_config.py that must stay
+# IDENTICAL across every quarter/year run for that state: the AOI shapefile
+# path and the tract label column to pull wealth_ind from. These can't be
+# derived from the state abbreviation alone -- e.g. AZ's shapefile is
+# tl_2019_04_tract_wi.shp (a "_wi" suffix that isn't a general convention),
+# so every new state needs its real path filled in here once, by hand,
+# after the shapefile is actually placed on disk. Fill in both fields
+# (neither may be null) before generating configs for a state.
+#
+# Everything else that also stays fixed per state -- the quarterly S2 band
+# list, cloud_cover_max, mask_clouds, sensor, uid_column, output.root /
+# dataset_name naming -- is the SAME for every state (see
+# generate_download_config.py's FIXED_* constants), so it's not repeated
+# here.
+
+az:
+  shp_path: /home/hbaier/projects/tlags_v2/data/tracts2019/AZ/tl_2019_04_tract_wi.shp
+  label_column: wealth_ind
+
+ga:
+  shp_path: null
+  label_column: null
+
+ca:
+  shp_path: null
+  label_column: null
+
+pa:
+  shp_path: null
+  label_column: null
