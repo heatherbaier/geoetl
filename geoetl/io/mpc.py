@@ -491,6 +491,31 @@ class MPCSource(ImagerySource):
             med = masked.median(dim="time", skipna=True)
             composite_bands.append(med)
 
+        # If this AOI has no usable pixel in ANY of the items found -- every
+        # item's own native nodata region covers this exact spot (e.g. it
+        # falls in a gap between adjacent scenes/tile edges), or, when
+        # mask_clouds=True, every item had it masked as cloud/shadow/cirrus
+        # (SCL classes 3/8/9/10) -- the per-pixel median above is NaN
+        # everywhere. Items existed (the "no items found" check above this
+        # method already passed), they just never contributed a single
+        # usable pixel here. Left unchecked, the scale/clip step below
+        # turns that all-NaN composite into a clean, "successful"-looking
+        # all-zero uint16 raster with no NoData value set on the output
+        # file (GDAL/QGIS then report it as 100% "valid" data, not empty)
+        # -- indistinguishable from a genuine dark reflectance reading.
+        # Raise the same way "no items found" does, so this AOI gets
+        # skipped upstream (download_tiles_for_geometry's existing
+        # `except RuntimeError` -> pipeline.py's per-AOI catch) instead of
+        # writing a chip that looks complete but is silently empty.
+        if all(bool(arr.isnull().all()) for arr in composite_bands):
+            raise RuntimeError(
+                f"{len(items)} item(s) found in {self.cfg['collection']} for "
+                f"this AOI/time window (cc<{self.cloud_cover_max}, "
+                f"mask_clouds={self.mask_clouds}), but none had a single "
+                f"usable (non-nodata{'/non-cloud' if self.mask_clouds else ''}) "
+                f"pixel at this location -- no usable composite."
+            )
+
         # Convert each band from native DN to uint16 reflectance × 10000,
         # matching GEESource output exactly.
         out_bands = []
