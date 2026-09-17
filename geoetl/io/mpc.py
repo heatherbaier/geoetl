@@ -603,6 +603,22 @@ class MPCSource(ImagerySource):
             return [tile_path]
         except Exception as e:
             print(f"⚠️ Failed to write composite {fname}: {e}")
+            # to_raster() can fail PARTWAY through -- e.g. it writes pixel
+            # data fine but then fails serializing the CRS (a broken PROJ
+            # install throwing "The EPSG code is unknown" here is exactly
+            # this) -- leaving a real, openable-but-geospatially-broken
+            # file at tile_path. Without this, the NEXT call for this same
+            # AOI (find_local_tiles, or this same method's own
+            # is_valid_raster check above) sees a file that opens fine and
+            # treats it as a legitimately cached composite, silently
+            # reusing the broken one forever instead of ever retrying the
+            # write. Remove it so a failed write can never masquerade as a
+            # successful one.
+            if os.path.isfile(tile_path):
+                try:
+                    os.remove(tile_path)
+                except OSError:
+                    pass
             return []
 
     def clip_to_geometry(self, geom, out_path, quads_dir) -> str:
