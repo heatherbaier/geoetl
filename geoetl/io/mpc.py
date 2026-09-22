@@ -531,6 +531,34 @@ class MPCSource(ImagerySource):
         stacked = xr.concat(out_bands, dim="band")
         stacked = stacked.assign_coords(band=list(self.cfg["bands"]))
         stacked = stacked.rio.write_crs(utm_crs)   # ← was "EPSG:4326"
+
+        # Confirmed against a real downloaded chip (GA 2016 Q2,
+        # mpc_sentinel2_..._n81p1769_32p0615.tif): every band read back as
+        # min=max=mean=stddev=0 with STATISTICS_VALID_PERCENT=100 -- and
+        # the isnull() guard above did NOT catch it, because these pixels
+        # were never NaN in the first place. mask_clouds=False (this
+        # project's current FIXED_CATALOG setting) means data[b] is used
+        # completely unmasked; if the underlying MPC/STAC asset has a
+        # "black fill" region that carries a real DN of 0 instead of a
+        # properly-declared nodata value, odc.stac has nothing to convert
+        # to NaN, so median(skipna=True) legitimately returns 0, not NaN,
+        # at every pixel -- a different failure mode from the one the
+        # isnull() check above targets, so it needs its own guard here,
+        # checked post scale/clip/fillna against exactly what's about to
+        # be written (not composite_bands' pre-scale raw DN, whose
+        # zero-point differs by sensor: e.g. Landsat's offset=-0.2 means a
+        # raw DN of 0 there is NOT the same as a written value of 0).
+        if bool((stacked == 0).all()):
+            raise RuntimeError(
+                f"{len(items)} item(s) found in {self.cfg['collection']} for "
+                f"this AOI/time window (cc<{self.cloud_cover_max}, "
+                f"mask_clouds={self.mask_clouds}), but the composite is "
+                f"entirely zero in every band after scaling -- no NaN was "
+                f"present to catch upstream, but there's no real signal "
+                f"here either (likely an unflagged black-fill region in "
+                f"the source asset(s)) -- no usable composite."
+            )
+
         return stacked
 
     # ------------------------------------------------------------------
