@@ -51,6 +51,8 @@ once per project.
 :maxdepth: 2
 
 installation
+quickstart
+concepts
 ```
 
 ```{toctree}
