@@ -1,4 +1,15 @@
 """
+SUPERSEDED for AZ/GA/CA/PA going forward -- see
+uswealth-geoai/pipeline_configs/generate_download_config.py, which does
+the same thing but writes its generated configs into that project repo
+(so replicating the paper only ever needs uswealth-geoai cloned +
+`pip install -r requirements.txt` there, not a `cd` into this repo) and
+reads a merged registry that also covers sail's per-state settings. Kept
+here, and still functional, only because AZ isn't migrated to that merged
+registry yet -- see that script's/uswealth-geoai's
+pipeline_configs/state_registry.yml's TODOs. Don't add new states here;
+add them to uswealth-geoai's registry instead.
+
 Generate a ready-to-launch geoetl download config from --state/--year/
 --quarter, instead of hand-copying a YAML file (and re-typing the shapefile
 path, band list, cloud_cover_max, uid/label columns, and the output.root/
