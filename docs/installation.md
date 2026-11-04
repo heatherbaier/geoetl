@@ -40,8 +40,7 @@ geoetl --help
 ```
 
 If that prints usage information instead of a `command not found` or
-import error, you're ready to run a config (Quickstart guide coming
-soon).
+import error, you're ready for the {doc}`quickstart`.
 
 ## Set up authentication
 
