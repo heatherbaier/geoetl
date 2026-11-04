@@ -12,3 +12,4 @@ archive
 *.ipynb*
 *.err
 *.out
+docs/_build/
