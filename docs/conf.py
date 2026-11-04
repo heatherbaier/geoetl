@@ -22,6 +22,7 @@ extensions = [
     "sphinx.ext.viewcode",  # adds "view source" links on API reference pages
     "sphinx.ext.intersphinx",
     "myst_parser",  # write pages in Markdown instead of reStructuredText
+    "sphinxcontrib.mermaid",  # ```{mermaid} diagrams, rendered client-side
 ]
 
 myst_enable_extensions = [

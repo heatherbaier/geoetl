@@ -52,6 +52,7 @@ once per project.
 
 installation
 quickstart
+concepts
 ```
 
 ```{toctree}
