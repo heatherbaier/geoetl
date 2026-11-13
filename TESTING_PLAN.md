@@ -1,6 +1,7 @@
 # geoetl Testing Plan
 
-Status: **draft — under discussion**. This is a living document: update it
+Status: **in progress** — foundational scaffolding + first increment of
+tests landed (`tests/`, pytest, CI). This is a living document: update it
 whenever a new feature lands, a new failure mode is found, or the testing
 approach changes. It has three jobs:
 
@@ -15,13 +16,16 @@ codebase:
 
 | Area | Why it matters | Current coverage |
 |---|---|---|
-| `geoetl/io/base.py` shared logic (`has_all_tiles`, `scan_local_tiles`, `write_chip`, `is_valid_raster`) | Used by every source; a bug here silently corrupts every dataset built with any source | None |
-| `geoetl/pipelines/pipeline.py` resumability (skip-if-exists, rebuild-if-corrupt) | This is geoetl's core promise ("resumable by default") — if it's wrong, multi-hour HPC runs silently redo or silently skip work | None |
-| `geoetl/io/mpc.py` (`MPCSource`) | STAC search, cloud masking, compositing — most complex source, most used | None |
-| `geoetl/io/planet.py` (`PlanetBasemapSource`) | Different caching strategy (shared quads) from MPC — easy for a fix to one source to break the other | None |
-| `geoetl/io/alpha_earth.py` | Optional dependency path (`alpha-earth` extra) — easy to silently bitrot since it's not exercised by default | None |
-| `geoetl/utils/jsonio.py`, `geoetl/utils/logging.py` | Small, but labels/coords JSON corruption or partial writes would be a silent data-quality bug | None |
-| `geoetl/cli.py` | User-facing entry point; config parsing errors should fail clearly, not deep in a stack trace | None |
+| `geoetl/io/base.py` shared logic (`has_all_tiles`, `scan_local_tiles`, `write_chip`, `is_valid_raster`, PNG scaling/calibration) | Used by every source; a bug here silently corrupts every dataset built with any source | `tests/unit/io/test_base.py` — 88% line coverage |
+| `geoetl/pipelines/pipeline.py` resumability (skip-if-exists, rebuild-if-corrupt) | This is geoetl's core promise ("resumable by default") — if it's wrong, multi-hour HPC runs silently redo or silently skip work | `tests/unit/pipelines/test_pipeline.py` (against a `FakeImagerySource`) — 97% |
+| `geoetl/io/mpc.py` (`MPCSource`) | STAC search, cloud masking, compositing — most complex source, most used | `tests/unit/io/test_mpc.py` covers `_tile_path`'s band-fingerprint regression and the `_build_composite` size cap; the search→load→mask→composite pipeline itself is still untested (37%) |
+| `geoetl/io/planet.py` (`PlanetBasemapSource`) | Different caching strategy (shared quads) from MPC — easy for a fix to one source to break the other | Interface-conformance only so far (14%) — no mocked-API test yet |
+| `geoetl/io/alpha_earth.py` | Optional dependency path (`alpha-earth` extra) — easy to silently bitrot since it's not exercised by default | None (0%) |
+| `geoetl/utils/jsonio.py` | Small, but labels/coords JSON corruption or partial writes would be a silent data-quality bug | `tests/unit/utils/test_jsonio.py` — 100% |
+| `geoetl/cli.py` | User-facing entry point; config parsing errors should fail clearly, not deep in a stack trace | `_expand_env_vars` covered (81%); the `run` command itself isn't |
+| `geoetl/io/__init__.py` (`get_source` factory) | Wrong cfg→source wiring fails silently wrong, not loudly | None yet (15%) |
+
+Baseline as of this increment: **44 tests, 50% overall line coverage**, concentrated exactly where the table above says it should be (base.py/pipeline.py high, the network-heavy source modules still low).
 
 **Not in scope for automated tests:** actually hitting the live MPC STAC API
 or Planet Basemaps API in CI. Those are rate-limited, require credentials
@@ -103,18 +107,41 @@ Kept deliberately small and explicit, so it's actually followed:
       cleanly (the thing `docs/concepts.md` promises in the resumability
       diagram)
 
-## 6. Open questions to settle before writing the first test
+## 6. Decisions made
 
-- **Mocking library**: `responses` (simple, request-level) vs.
-  `pytest-httpserver` (a real local server, closer to reality but more
-  setup) vs. recording real responses once with something like `vcrpy`
-  and replaying them. Leaning `responses` for STAC search since the
-  response shape is simple JSON, but open to discussion.
-- **Coverage target**: do we want a hard number (e.g. 80%) enforced in CI,
-  or just "the areas in §1 have tests" without a blanket percentage? A
-  hard number on a small, API-heavy codebase like this one can be
-  misleading (the actual risk is behavioral, not line-count).
-- **Where do the regression tests for already-fixed bugs go** (the PNG
-  black-output fix, the MPC memory errors, the stale-cache-on-band-change
-  fix)? Proposing one test per fixed bug, named after what it guards
-  against, rather than bucketing them generically.
+- **Mocking library**: `responses`, added as a test dependency. Not
+  actually exercised yet in this increment — see the testability finding
+  below for why the first round of `MPCSource` tests used
+  `monkeypatch`/dependency substitution instead. `responses` is still the
+  right tool for the next increment's real HTTP-level STAC/Planet mocking.
+- **Coverage target**: no hard percentage gate. CI runs with
+  `--cov-report=term-missing` for visibility, but what's gated (informally,
+  by review) is "does every area in §1's table have tests for its actual
+  risk," not a line-count threshold.
+- **Regression tests for already-fixed bugs**: one test per fixed bug,
+  named after what it guards against, living alongside the ordinary unit
+  tests for the module it's in rather than a separate `regressions/`
+  bucket. Landed so far: the black-PNG fix
+  (`test_write_chip_png_scales_values_and_zeroes_nodata`,
+  `tests/unit/io/test_base.py`) and the stale-cache-on-band-change fix
+  (`test_tile_path_changes_when_bands_override_differs`,
+  `tests/unit/io/test_mpc.py`). Still outstanding: a direct regression
+  test for the memory-cap fix itself is in (`test_mpc.py`'s
+  `test_build_composite_raises_when_estimated_size_exceeds_the_cap`), but
+  nothing yet regression-tests the chunked-read behavior that accompanied
+  it.
+
+## 7. Testability finding worth fixing separately
+
+`MPCSource.__init__` opens a live STAC catalog connection
+(`pystac_client.Client.open(MPC_STAC_URL, ...)`) unconditionally — so
+*constructing* an `MPCSource` makes a real network call to Microsoft
+Planetary Computer, even just to validate constructor arguments like
+`bands`. Every `MPCSource` test in this round has to monkeypatch
+`pystac_client.Client.open` before instantiating one. That's a workable
+pattern for tests, but it's also a real design smell worth fixing on its
+own merits: a config-validation pass (already on `ROADMAP.md`'s Phase 1)
+that constructs sources to check them would make a network call per
+config just to validate it. Worth lazily opening the catalog connection on
+first actual search instead — not doing that here since it's out of scope
+for "add tests," but flagging it so it doesn't get lost.

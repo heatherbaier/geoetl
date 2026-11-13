@@ -13,3 +13,7 @@ archive
 *.err
 *.out
 docs/_build/
+.pytest_cache/
+.coverage
+htmlcov/
+

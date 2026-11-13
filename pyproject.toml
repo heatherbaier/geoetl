@@ -30,6 +30,7 @@ dependencies = [
 [project.optional-dependencies]
 alpha-earth = ["earthengine-api"]
 docs = ["sphinx>=7.0", "furo", "myst-parser", "sphinxcontrib-mermaid"]
+test = ["pytest>=7", "pytest-cov>=4", "responses>=0.23"]
 
 [project.scripts]
 geoetl = "geoetl.cli:app"
@@ -37,3 +38,6 @@ geoetl = "geoetl.cli:app"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["geoetl*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
