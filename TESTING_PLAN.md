@@ -18,14 +18,14 @@ codebase:
 |---|---|---|
 | `geoetl/io/base.py` shared logic (`has_all_tiles`, `scan_local_tiles`, `write_chip`, `is_valid_raster`, PNG scaling/calibration) | Used by every source; a bug here silently corrupts every dataset built with any source | `tests/unit/io/test_base.py` — 88% line coverage |
 | `geoetl/pipelines/pipeline.py` resumability (skip-if-exists, rebuild-if-corrupt) | This is geoetl's core promise ("resumable by default") — if it's wrong, multi-hour HPC runs silently redo or silently skip work | `tests/unit/pipelines/test_pipeline.py` (against a `FakeImagerySource`) — 97% |
-| `geoetl/io/mpc.py` (`MPCSource`) | STAC search, cloud masking, compositing — most complex source, most used | `tests/unit/io/test_mpc.py` covers `_tile_path`'s band-fingerprint regression and the `_build_composite` size cap; the search→load→mask→composite pipeline itself is still untested (37%) |
-| `geoetl/io/planet.py` (`PlanetBasemapSource`) | Different caching strategy (shared quads) from MPC — easy for a fix to one source to break the other | Interface-conformance only so far (14%) — no mocked-API test yet |
-| `geoetl/io/alpha_earth.py` | Optional dependency path (`alpha-earth` extra) — easy to silently bitrot since it's not exercised by default | None (0%) |
+| `geoetl/io/mpc.py` (`MPCSource`) | STAC search, cloud masking, compositing — most complex source, most used | `tests/unit/io/test_mpc.py` — 74%. Construction and `_search_items` are mocked at the real HTTP layer (`responses`); the per-AOI composite cache lifecycle (`find_local_tiles`/`download_tiles_for_geometry`/`clip_to_geometry`, including the float64/black-output regression) and the size cap are covered. **Not covered**: `_mask_and_scale_s2`/`_mask_and_scale_landsat` and the median-composite assembly inside `_build_composite` — the actual cloud-masking/compositing math, deliberately scoped out as a bigger, separate effort (needs realistic multi-band/multi-time xarray fixtures, not just HTTP mocking) |
+| `geoetl/io/planet.py` (`PlanetBasemapSource`) | Different caching strategy (shared quads) from MPC — easy for a fix to one source to break the other | `tests/unit/io/test_planet.py` — 93%. Mosaic lookup + quad search mocked via `responses`; the quad *download* itself (`urllib.request.urlretrieve`, not intercepted by `responses`) is monkeypatched directly; merge/clip tested for real against synthetic tiles, including Planet's own copy of the float64/black-output regression |
+| `geoetl/io/alpha_earth.py` | Optional dependency path (`alpha-earth` extra) | Out of scope for now — may be dropped from the project entirely; not tested either way (0%) |
 | `geoetl/utils/jsonio.py` | Small, but labels/coords JSON corruption or partial writes would be a silent data-quality bug | `tests/unit/utils/test_jsonio.py` — 100% |
 | `geoetl/cli.py` | User-facing entry point; config parsing errors should fail clearly, not deep in a stack trace | `_expand_env_vars` covered (81%); the `run` command itself isn't |
-| `geoetl/io/__init__.py` (`get_source` factory) | Wrong cfg→source wiring fails silently wrong, not loudly | None yet (15%) |
+| `geoetl/io/__init__.py` (`get_source` factory) | Wrong cfg→source wiring fails silently wrong, not loudly | Not in this round's scope (15%) |
 
-Baseline as of this increment: **44 tests, 50% overall line coverage**, concentrated exactly where the table above says it should be (base.py/pipeline.py high, the network-heavy source modules still low).
+Baseline after this increment: **74 tests, 72% overall line coverage** (up from 44 tests / 50% after Phase 1's first increment).
 
 **Not in scope for automated tests:** actually hitting the live MPC STAC API
 or Planet Basemaps API in CI. Those are rate-limited, require credentials
@@ -109,11 +109,14 @@ Kept deliberately small and explicit, so it's actually followed:
 
 ## 6. Decisions made
 
-- **Mocking library**: `responses`, added as a test dependency. Not
-  actually exercised yet in this increment — see the testability finding
-  below for why the first round of `MPCSource` tests used
-  `monkeypatch`/dependency substitution instead. `responses` is still the
-  right tool for the next increment's real HTTP-level STAC/Planet mocking.
+- **Mocking library**: `responses`, now actually exercised — `MPCSource`
+  construction and `_search_items`, and `PlanetBasemapSource`'s mosaic
+  lookup + quad search, are all mocked at the real HTTP layer rather than
+  by monkeypatching the methods that make those calls. The one exception
+  is Planet's quad *download*: it uses `urllib.request.urlretrieve`, which
+  `responses` doesn't intercept (it patches `requests`' transport, not
+  `urllib`) — confirmed empirically, not assumed — so that one call is
+  monkeypatched directly in `tests/unit/io/test_planet.py`.
 - **Coverage target**: no hard percentage gate. CI runs with
   `--cov-report=term-missing` for visibility, but what's gated (informally,
   by review) is "does every area in §1's table have tests for its actual
@@ -137,9 +140,10 @@ Kept deliberately small and explicit, so it's actually followed:
 (`pystac_client.Client.open(MPC_STAC_URL, ...)`) unconditionally — so
 *constructing* an `MPCSource` makes a real network call to Microsoft
 Planetary Computer, even just to validate constructor arguments like
-`bands`. Every `MPCSource` test in this round has to monkeypatch
-`pystac_client.Client.open` before instantiating one. That's a workable
-pattern for tests, but it's also a real design smell worth fixing on its
+`bands`. The mocked-API increment (§1/§6) now tests this properly —
+`responses` mocks the actual root-catalog GET instead of monkeypatching
+`pystac_client.Client.open` itself — so this is no longer a problem for
+*tests*. It's still a real design smell in the source worth fixing on its
 own merits: a config-validation pass (already on `ROADMAP.md`'s Phase 1)
 that constructs sources to check them would make a network call per
 config just to validate it. Worth lazily opening the catalog connection on
