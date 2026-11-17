@@ -1,3 +1,4 @@
+from geoetl.config import validate_config
 from geoetl.io import get_source
 from geoetl.io.base import AOITooLargeError
 from geoetl.utils.jsonio import update_json
@@ -16,6 +17,8 @@ def _peak_rss_mb() -> float:
 
 
 def run_pipeline(cfg):
+    validate_config(cfg)
+
     gdf = gpd.read_file(cfg["aoi"]["path"])
     out_dir = cfg["output"]["root"]
     label_col = cfg["params"]["label_column"]

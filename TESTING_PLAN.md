@@ -20,11 +20,12 @@ codebase:
 | `geoetl/pipelines/pipeline.py` resumability (skip-if-exists, rebuild-if-corrupt) | This is geoetl's core promise ("resumable by default") — if it's wrong, multi-hour HPC runs silently redo or silently skip work | `tests/unit/pipelines/test_pipeline.py` (against a `FakeImagerySource`) — 97% |
 | `geoetl/io/mpc.py` (`MPCSource`) | STAC search, cloud masking, compositing — most complex source, most used | `tests/unit/io/test_mpc.py` — 74%. Construction and `_search_items` are mocked at the real HTTP layer (`responses`); the per-AOI composite cache lifecycle (`find_local_tiles`/`download_tiles_for_geometry`/`clip_to_geometry`, including the float64/black-output regression) and the size cap are covered. **Not covered**: `_mask_and_scale_s2`/`_mask_and_scale_landsat` and the median-composite assembly inside `_build_composite` — the actual cloud-masking/compositing math, deliberately scoped out as a bigger, separate effort (needs realistic multi-band/multi-time xarray fixtures, not just HTTP mocking) |
 | `geoetl/io/planet.py` (`PlanetBasemapSource`) | Different caching strategy (shared quads) from MPC — easy for a fix to one source to break the other | `tests/unit/io/test_planet.py` — 93%. Mosaic lookup + quad search mocked via `responses`; the quad *download* itself (`urllib.request.urlretrieve`, not intercepted by `responses`) is monkeypatched directly; merge/clip tested for real against synthetic tiles, including Planet's own copy of the float64/black-output regression |
+| `geoetl/config.py` (`validate_config`) | Runs before any AOI is touched; catches misconfigurations that would otherwise fail deep in the stack, silently fall back to a wrong default, or not raise at all | `tests/unit/test_config.py` — 100% |
 | `geoetl/utils/jsonio.py` | Small, but labels/coords JSON corruption or partial writes would be a silent data-quality bug | `tests/unit/utils/test_jsonio.py` — 100% |
 | `geoetl/cli.py` | User-facing entry point; config parsing errors should fail clearly, not deep in a stack trace | `_expand_env_vars` covered (81%); the `run` command itself isn't |
-| `geoetl/io/__init__.py` (`get_source` factory) | Wrong cfg→source wiring fails silently wrong, not loudly | Not in this round's scope (15%) |
+| `geoetl/io/__init__.py` (`get_source` factory) | Wrong cfg→source wiring fails silently wrong, not loudly | Not in this round's scope (18%) |
 
-Baseline after this increment: **74 tests, 72% overall line coverage** (up from 44 tests / 50% after Phase 1's first increment).
+Baseline after this increment: **112 tests, 84% overall line coverage** (up from 74 tests / 72% after the mocked-API increment).
 
 **Not in scope for automated tests:** actually hitting the live MPC STAC API
 or Planet Basemaps API in CI. Those are rate-limited, require credentials

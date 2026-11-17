@@ -75,7 +75,10 @@ def base_cfg(tmp_path, aoi_file, sub_root=None, sub_root_column=None):
             "uid_column": "id",
             "dataset_name": "testset",
         },
-        "catalog": {"sensor": "irrelevant-mocked-out"},
+        # A real, valid sensor name -- validate_config checks this against
+        # KNOWN_SENSORS even though get_source itself is monkeypatched
+        # below to return whatever FakeImagerySource the test built.
+        "catalog": {"sensor": "mpc_sentinel2"},
     }
     if sub_root:
         cfg["output"]["sub_root"] = sub_root
