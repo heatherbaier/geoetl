@@ -27,12 +27,6 @@ This pulls in geoetl's full dependency set — `typer`, `geopandas`,
 others — so expect it to take a minute or two, particularly for the
 geospatial stack (GDAL-backed packages like `rioxarray` are not small).
 
-:::{note}
-If you only need `earthengine-api` for the experimental AlphaEarth source
-(not wired into the CLI by default), install the optional extra instead:
-`pip install -e ".[alpha-earth]"`. Most users don't need this.
-:::
-
 ## Verify the install
 
 ```bash
