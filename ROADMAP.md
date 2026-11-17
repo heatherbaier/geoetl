@@ -10,15 +10,21 @@ Building providers/formats on a zero-test codebase means every addition
 after this point is untested. This phase makes the rest of the plan safe
 to execute quickly.
 
-- [ ] **Test suite + CI** — unit tests for the pure logic (band config,
+- [x] **Test suite + CI** — unit tests for the pure logic (band config,
       PNG scaling math, size-cap triggering, path construction, env-var
       expansion), a conformance test for the `ImagerySource` interface so
       a new provider can't silently violate it, integration tests against
       mocked STAC/API responses (not live MPC/Planet calls in CI).
-      GitHub Actions wired to run on every PR. See `TESTING_PLAN.md`.
-- [ ] **Config validation** — flagged in the original audit, still
-      outstanding; matters more once there are more providers/formats
-      with more ways to misconfigure.
+      GitHub Actions wired to run on every PR. 112 tests, 84% coverage.
+      Still open: MPC's actual cloud-masking/compositing math is
+      untested — see `TESTING_PLAN.md`.
+- [x] **Config validation** — `geoetl/config.py`'s `validate_config()`,
+      run once up front by `run_pipeline()` before any AOI is touched.
+      Catches the misconfigurations that previously either failed deep
+      in the stack with a cryptic `KeyError`, silently fell back to a
+      default instead of erroring (e.g. `output.format: "PNG"` wrong
+      case), or didn't raise at all (`output.sub_root` without
+      `sub_root_column` failing every AOI silently). 100% test coverage.
 - [ ] **Remaining docs pages** — Configuration Reference, How-to guides,
       Extending, Troubleshooting, Contributing (from the original
       outline). JOSS explicitly checks for statement-of-need / install /

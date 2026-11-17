@@ -40,6 +40,10 @@ from .planet import PlanetBasemapSource
 # from .gee import GEESource
 from .mpc import MPCSource
 
+# The sensors get_source actually dispatches on -- geoetl/config.py's
+# validate_config imports this so the two can't drift apart.
+KNOWN_SENSORS = ("planet", "mpc_sentinel2", "mpc_landsat8", "mpc_landsat5")
+
 
 def get_source(sensor, cfg=None):
     """Factory method to get the appropriate imagery source."""
@@ -114,4 +118,6 @@ def get_source(sensor, cfg=None):
         )
 
     else:
-        raise ValueError(f"Unknown sensor type: {sensor}")
+        raise ValueError(
+            f"Unknown sensor type: {sensor}. Choose from: {list(KNOWN_SENSORS)}"
+        )
