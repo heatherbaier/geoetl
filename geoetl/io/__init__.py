@@ -1,6 +1,5 @@
 # from .planet import PlanetBasemapSource
 # from .gee import GEESource
-# from .alpha_earth import AlphaEarthSource
 
 
 # def get_source(sensor, cfg=None):
@@ -30,23 +29,6 @@
 #             end_date=end_date,
 #         )
 
-#     elif sensor_lower == "alpha_earth":
-#         out_root = cfg["output"]["root"]
-#         years = cfg.get("temporal", {}).get("years", [])
-#         ee_project = cfg.get("auth", {}).get("ee_project", None)
-#         scale = cfg.get("temporal", {}).get("scale", 10)
-#         if not years:
-#             raise ValueError(
-#                 "AlphaEarth requires at least one year in config under "
-#                 "temporal.years (e.g. years: [2022, 2023])"
-#             )
-#         return AlphaEarthSource(
-#             out_root=out_root,
-#             years=years,
-#             ee_project=ee_project,
-#             scale=scale,
-#         )
-
 #     else:
 #         raise ValueError(f"Unknown sensor type: {sensor}")
 
@@ -56,7 +38,6 @@ import os
 
 from .planet import PlanetBasemapSource
 # from .gee import GEESource
-# from .alpha_earth import AlphaEarthSource
 from .mpc import MPCSource
 
 
@@ -97,23 +78,6 @@ def get_source(sensor, cfg=None):
     #         ee_project=ee_project,
     #         start_date=start_date,
     #         end_date=end_date,
-    #     )
-
-    # elif sensor_lower == "alpha_earth":
-    #     out_root = cfg["output"]["root"]
-    #     years = cfg.get("temporal", {}).get("years", [])
-    #     ee_project = cfg.get("auth", {}).get("ee_project", None)
-    #     scale = cfg.get("temporal", {}).get("scale", 10)
-    #     if not years:
-    #         raise ValueError(
-    #             "AlphaEarth requires at least one year in config under "
-    #             "temporal.years (e.g. years: [2022, 2023])"
-    #         )
-    #     return AlphaEarthSource(
-    #         out_root=out_root,
-    #         years=years,
-    #         ee_project=ee_project,
-    #         scale=scale,
     #     )
 
     elif sensor_lower in ("mpc_sentinel2", "mpc_landsat8", "mpc_landsat5"):
